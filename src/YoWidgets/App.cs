@@ -38,19 +38,23 @@ internal sealed class App : System.Windows.Application
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ru-RU");
         CultureInfo.CurrentUICulture = CultureInfo.CurrentCulture;
         Ui.Theme();
+        BundleCache.Register();
         Manager = new WidgetManager(DataRoot, args.Contains("--no-desktop"));
         tray = new System.Windows.Forms.NotifyIcon { Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? System.Drawing.SystemIcons.Application, Text = "YoWidgets", Visible = true };
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Открыть YoWidgets", null, (_, _) => Dispatcher.Invoke(ShowShell));
         menu.Items.Add("Snooze / продолжить", null, (_, _) => Dispatcher.Invoke(() => Manager.SetSnooze(!Manager.Snoozed)));
+        menu.Items.Add("Сбросить позиции виджетов по центру экрана", null, (_, _) => Dispatcher.Invoke(Manager.ResetPositions));
         menu.Items.Add("Отключить всё", null, (_, _) => Dispatcher.Invoke(Manager.DisableAll));
         menu.Items.Add("Выйти", null, (_, _) => Dispatcher.Invoke(ExitApp));
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => Dispatcher.Invoke(ShowShell);
-        ShowShell();
+        if (!args.Contains("--widgets-only"))
+            ShowShell();
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => { Manager.RevealWidgets(); ReleaseUnusedImages(); });
         if (args.Contains("--optics-test"))
             Manager.ShowOpticsTest();
-        Trace("startup", $"Version 0.1.0; WPF tier {RenderCapability.Tier >> 16}; OS {Environment.OSVersion.Version}");
+        Trace("startup", $"Version 0.2.0; WPF tier {RenderCapability.Tier >> 16}; OS {Environment.OSVersion.Version}");
     }
     public void ShowShell()
     {
@@ -62,6 +66,15 @@ internal sealed class App : System.Windows.Application
         Shell.Show();
         Shell.WindowState = WindowState.Normal;
         Shell.Activate();
+    }
+    public void ReleaseUnusedImages()
+    {
+        Manager.Wallpaper.ClearCache();
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            Trace("memory", $"managed={GC.GetTotalMemory(false)}; cropCache={Manager.Wallpaper.CachedPixelBytes}; workingSet={Environment.WorkingSet}");
+        });
     }
     public void ExitApp()
     {

@@ -4,7 +4,9 @@ namespace YoWidgets;
 internal sealed class WallpaperProvider : IDisposable
 {
     readonly IDesktopWallpaper? desktop;
+    // Only detached, widget-sized raster snapshots are retained, never full wallpaper frames.
     readonly Dictionary<string, BitmapSource> cache = [];
+    public long CachedPixelBytes => cache.Values.Sum(b => (long)b.PixelWidth * b.PixelHeight * 4);
     public WallpaperProvider()
     {
         try
@@ -13,6 +15,7 @@ internal sealed class WallpaperProvider : IDisposable
         }
         catch (Exception e) { App.Log("wallpaper", e); }
     }
+    public void ClearCache() => cache.Clear();
     public Brush GetBrush(RectD sample, bool checker = false)
     {
         if (checker)
@@ -20,7 +23,7 @@ internal sealed class WallpaperProvider : IDisposable
         try
         {
             if (desktop == null)
-                return new SolidColorBrush(Color.FromRgb(28, 43, 64));
+                return Brushes.Transparent;
             desktop.GetMonitorDevicePathCount(out var count);
             string? path = null;
             RectD screen = new(0, 0, 1920, 1080);
@@ -40,42 +43,60 @@ internal sealed class WallpaperProvider : IDisposable
             var background = Color.FromRgb((byte)c, (byte)(c >> 8), (byte)(c >> 16));
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
                 return new SolidColorBrush(background);
-            var key = path + File.GetLastWriteTimeUtc(path).Ticks;
-            if (!cache.TryGetValue(key, out var image))
-            {
-                var b = new BitmapImage();
-                b.BeginInit();
-                b.UriSource = new(path);
-                b.CacheOption = BitmapCacheOption.OnLoad;
-                b.DecodePixelWidth = 3840;
-                b.EndInit();
-                b.Freeze();
-                if (cache.Count > 5)
-                    cache.Clear();
-                cache[key] = image = b;
-            }
             desktop.GetPosition(out var pos);
-            var modes = new[] { "Center", "Tile", "Stretch", "Fit", "Fill", "Span" };
-            var mode = modes[Math.Clamp(pos, 0, 5)];
+            var mode = new[] { "Center", "Tile", "Stretch", "Fit", "Fill", "Span" }[Math.Clamp(pos, 0, 5)];
             if (mode == "Span")
             {
                 var a = System.Windows.Forms.SystemInformation.VirtualScreen;
                 screen = new(a.X, a.Y, a.Width, a.Height);
             }
-            var layout = WallpaperLayout.Calculate(image.PixelWidth, image.PixelHeight, screen, mode);
-            var group = new DrawingGroup();
-            group.Children.Add(new GeometryDrawing(new SolidColorBrush(background), null, new RectangleGeometry(new Rect(0, 0, sample.Width, sample.Height))));
-            if (mode == "Tile")
+            var key = $"{path}|{File.GetLastWriteTimeUtc(path).Ticks}|{sample}|{screen}|{mode}|{c}";
+            if (!cache.TryGetValue(key, out var image))
             {
-                var tiles = new ImageBrush(image) { TileMode = TileMode.Tile, ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(-sample.X, -sample.Y, image.PixelWidth, image.PixelHeight), Stretch = Stretch.Fill };
-                group.Children.Add(new GeometryDrawing(tiles, null, new RectangleGeometry(new Rect(0, 0, sample.Width, sample.Height))));
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreImageCache, BitmapCacheOption.OnDemand);
+                var source = decoder.Frames[0];
+                var layout = WallpaperLayout.Calculate(source.PixelWidth, source.PixelHeight, screen, mode);
+                var visual = new DrawingVisual();
+                var width = Math.Clamp((int)Math.Ceiling(sample.Width), 1, 900);
+                var height = Math.Clamp((int)Math.Ceiling(sample.Height), 1, 650);
+                using (var dc = visual.RenderOpen())
+                {
+                    dc.PushTransform(new ScaleTransform(width / sample.Width, height / sample.Height));
+                    dc.DrawRectangle(new SolidColorBrush(background), null, new Rect(0, 0, sample.Width, sample.Height));
+                    if (mode == "Tile")
+                    {
+                        var tiled = new ImageBrush(source) { TileMode = TileMode.Tile, ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(-sample.X, -sample.Y, source.PixelWidth, source.PixelHeight), Stretch = Stretch.Fill };
+                        dc.DrawRectangle(tiled, null, new Rect(0, 0, sample.Width, sample.Height));
+                    }
+                    else
+                    {
+                        // Convert this widget's screen rectangle to a source-pixel crop before rendering.
+                        var crop = WallpaperCrop.Calculate(source.PixelWidth, source.PixelHeight, layout, sample);
+                        if (crop.Width > 0 && crop.Height > 0)
+                        {
+                            var clipped = new CroppedBitmap(source, new Int32Rect((int)crop.X, (int)crop.Y, (int)crop.Width, (int)crop.Height));
+                            var sx = layout.Width / source.PixelWidth;
+                            var sy = layout.Height / source.PixelHeight;
+                            dc.DrawImage(clipped, new Rect(layout.X + crop.X * sx - sample.X, layout.Y + crop.Y * sy - sample.Y, crop.Width * sx, crop.Height * sy));
+                        }
+                    }
+                    dc.Pop();
+                }
+                var snapshot = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+                snapshot.Render(visual);
+                snapshot.Freeze();
+                image = snapshot;
+                if (cache.Count >= 8)
+                    cache.Clear();
+                cache[key] = image;
+                // No decoder, stream, DrawingVisual or CroppedBitmap escapes this scope.
             }
-            else
-                group.Children.Add(new ImageDrawing(image, new Rect(layout.X - sample.X, layout.Y - sample.Y, layout.Width, layout.Height)));
-            var brush = new DrawingBrush(group) { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, sample.Width, sample.Height), Stretch = Stretch.Fill };
+            var brush = new ImageBrush(image) { Stretch = Stretch.Fill };
+            brush.Freeze();
             return brush;
         }
-        catch (Exception e) { App.Log("wallpaper", e); return new SolidColorBrush(Color.FromRgb(28, 43, 64)); }
+        catch (Exception e) { App.Log("wallpaper-crop", e); return Brushes.Transparent; }
     }
     static Brush Checker(RectD sample)
     {
@@ -87,7 +108,7 @@ internal sealed class WallpaperProvider : IDisposable
     }
     public void Dispose()
     {
-        cache.Clear();
+        ClearCache();
         if (desktop != null)
             Marshal.ReleaseComObject(desktop);
     }

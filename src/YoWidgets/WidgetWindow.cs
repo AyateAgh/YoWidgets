@@ -4,7 +4,7 @@ namespace YoWidgets;
 
 internal sealed class WidgetWindow : Window
 {
-    readonly WidgetManager manager; readonly WidgetState state; readonly GlassSurface glass = new(); readonly Grid surface = new(); readonly DesktopHost host = new(); readonly bool checker; bool wasAttached; bool hostLost; public bool HostLost => hostLost || wasAttached && !host.Attached; int expansionVersion; bool closing; bool loaded; Point? dragStart; RectD? dragBounds; public bool Expanded
+    readonly WidgetManager manager; readonly WidgetState state; readonly GlassSurface glass = new(); readonly Grid surface = new() { Background = null }; readonly bool checker; int expansionVersion; bool closing; bool loaded; Point? dragStart; RectD? dragBounds; public bool Expanded
     {
         get; private set;
     }
@@ -21,6 +21,8 @@ internal sealed class WidgetWindow : Window
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.Manual;
         Topmost = m.Settings.Topmost;
+        Left = s.X / Math.Max(1, System.Windows.Media.VisualTreeHelper.GetDpi(this).DpiScaleX);
+        Top = s.Y / Math.Max(1, System.Windows.Media.VisualTreeHelper.GetDpi(this).DpiScaleY);
         UseLayoutRounding = true;
         SnapsToDevicePixels = true;
         surface.Margin = new Thickness(20);
@@ -31,7 +33,7 @@ internal sealed class WidgetWindow : Window
         Content = surface;
         SetDimensions();
         SourceInitialized += (_, _) => { Native.ToolWindow(this); var source = (HwndSource)PresentationSource.FromVisual(this); source.AddHook(Hook); };
-        Loaded += (_, _) => { loaded = true; if (m.Settings.DesktopMode && !m.ForceNormal && !test) { wasAttached = host.TryAttach(this); if (!wasAttached) { manager.DesktopStatus = host.Status + ". Переподключите виджеты или выключите настольный режим."; Dispatcher.BeginInvoke(() => { Hide(); App.CurrentApp.Shell?.Status(manager.DesktopStatus); }); } } Position(); RefreshGlass(); };
+        Loaded += (_, _) => { loaded = true; Position(); RefreshGlass(); Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => TraceVisibility()); };
         LocationChanged += (_, _) => { if (loaded) RefreshGlass(); };
         SizeChanged += (_, _) => { if (loaded) RefreshGlass(); };
         MouseMove += (_, e) => { if (dragStart is Point start && dragBounds is RectD bounds && e.LeftButton == MouseButtonState.Pressed) { var now = PointToScreen(e.GetPosition(this)); PlacePhysical(bounds.X + now.X - start.X, bounds.Y + now.Y - start.Y); } if (!m.Snoozed) glass.Pointer(e.GetPosition(surface), surface.ActualWidth, surface.ActualHeight, true); };
@@ -100,14 +102,24 @@ internal sealed class WidgetWindow : Window
     void PlacePhysical(double x, double y)
     {
         var h = Native.Handle(this);
-        var parent = Native.GetParent(h);
-        if (host.Attached && Native.GetWindowRect(parent, out var r))
-        {
-            x -= r.Left;
-            y -= r.Top;
-        }
         Native.SetWindowPos(h, IntPtr.Zero, (int)x, (int)y, 0, 0, 0x15);
         RefreshGlass();
+    }
+    public void CenterOnCurrentMonitor(int index, int count = 1, double cellWidth = 0, double cellHeight = 0)
+    {
+        var screen = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position);
+        var a = screen.WorkingArea;
+        var dpi = Math.Max(1, Native.GetDpiForWindow(Native.Handle(this)) / 96d);
+        var p = Placement.CenterGrid(Width * dpi, Height * dpi, new(a.X, a.Y, a.Width, a.Height), index, count, Math.Max(Width * dpi, cellWidth), Math.Max(Height * dpi, cellHeight));
+        state.X = p.X;
+        state.Y = p.Y;
+        Position();
+        TraceVisibility();
+    }
+    void TraceVisibility()
+    {
+        var b = Native.Bounds(this);
+        App.Trace("widget-visible", $"{state.Kind}; HWND={Native.Handle(this)}; visible={IsVisible}; parent={Native.GetParent(Native.Handle(this))}; x={b.X}; y={b.Y}; width={b.Width}; height={b.Height}; topmost={Topmost}; transparent={AllowsTransparency}; glass={glass.Mode}");
     }
     void SavePosition()
     {
@@ -120,27 +132,10 @@ internal sealed class WidgetWindow : Window
     {
         if (!loaded)
             return;
-        var b = Native.Bounds(this);
-        if (manager.Settings.Topmost || !manager.Settings.DesktopMode)
-        {
-            host.Detach();
-            wasAttached = false;
-            hostLost = false;
-            Topmost = manager.Settings.Topmost;
-        }
-        else if (!manager.ForceNormal && !checker && !host.Attached)
-        {
-            wasAttached = host.TryAttach(this);
-            if (!wasAttached)
-            {
-                Hide();
-                manager.DesktopStatus = host.Status;
-                return;
-            }
-        }
+        Topmost = manager.Settings.Topmost;
         if (!manager.Snoozed)
             Show();
-        PlacePhysical(b.X, b.Y);
+        Position();
     }
     public void RefreshGlass()
     {
@@ -181,11 +176,6 @@ internal sealed class WidgetWindow : Window
     }
     IntPtr Hook(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
     {
-        if (msg == 0x0002 && wasAttached && !closing)
-        {
-            hostLost = true;
-            closing = true;
-        }
         if (msg == 0x02E0)
             Dispatcher.BeginInvoke(() => { Position(); RefreshGlass(); });
         if (msg == 0x007E || msg == 0x001A)
@@ -198,9 +188,8 @@ internal sealed class WidgetWindow : Window
         try
         {
             Hide();
-            host.Detach();
             Close();
         }
-        catch (InvalidOperationException) { host.Detach(); }
+        catch (InvalidOperationException) { }
     }
 }

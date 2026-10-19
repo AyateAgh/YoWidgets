@@ -10,7 +10,7 @@ function Assert-SafeAncestors([string]$path) {
  }
 }
 $projectRoot=Split-Path -Parent $PSScriptRoot
-$source=Join-Path $projectRoot 'artifacts/release'
+$source=Join-Path $projectRoot 'artifacts/install-payload'
 if (-not (Test-Path -LiteralPath (Join-Path $source 'YoWidgets.exe'))) { throw 'Run scripts/build.ps1 first.' }
 $installRoot=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs/YoWidgets'))
 $dataRoot=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'YoWidgets'))
@@ -46,7 +46,7 @@ if (-not $TestDestination) {
  if (Test-Path -LiteralPath $key) { throw 'Uninstall registry key already exists.' }
  New-Item -Path $key -Force | Out-Null
  New-ItemProperty -LiteralPath $key -Name DisplayName -Value YoWidgets -PropertyType String | Out-Null
- New-ItemProperty -LiteralPath $key -Name DisplayVersion -Value '0.1.0' -PropertyType String | Out-Null
+ New-ItemProperty -LiteralPath $key -Name DisplayVersion -Value '0.2.0' -PropertyType String | Out-Null
  New-ItemProperty -LiteralPath $key -Name InstallLocation -Value $installRoot -PropertyType String | Out-Null
  New-ItemProperty -LiteralPath $key -Name UninstallString -Value ('powershell.exe -WindowStyle Hidden -NoProfile -File "'+(Join-Path $installRoot 'uninstall.ps1')+'" -ShowResult') -PropertyType String | Out-Null
 }

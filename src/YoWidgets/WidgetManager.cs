@@ -35,9 +35,13 @@ internal sealed class WidgetManager : IDisposable
         Store = new(Path.Combine(root, "settings.json"));
         Settings = Store.Load();
         Data = new DataServices(this);
-        Data.Changed += CheckDesktopHealth;
+        var migrate = Settings.FloatingPlacementVersion < 1;
         foreach (var s in Settings.Widgets.Where(s => s.Enabled))
-            Open(s);
+            Open(s, migrate);
+        if (migrate)
+            ResetPositions();
+        Settings.FloatingPlacementVersion = 1;
+        Save();
         Data.UpdateActivity();
     }
     public int ActiveCount => Settings.Widgets.Count(s => s.Enabled);
@@ -71,7 +75,7 @@ internal sealed class WidgetManager : IDisposable
                 Settings.Widgets.Add(s);
             }
             s.Enabled = true;
-            Open(s);
+            Open(s, true);
         }
         Save();
         Changed?.Invoke();
@@ -80,19 +84,49 @@ internal sealed class WidgetManager : IDisposable
     {
         var s = new WidgetState { Kind = kind, Enabled = true, X = 80 + (ActiveCount % 3) * 380, Y = 80 + (ActiveCount / 3) * 220 };
         Settings.Widgets.Add(s);
-        Open(s);
+        Open(s, true);
         Save();
         Changed?.Invoke();
     }
-    void Open(WidgetState s)
+    void Open(WidgetState s, bool center = false)
     {
         if (windows.ContainsKey(s.Id))
             return;
         var w = new WidgetWindow(this, s);
         windows[s.Id] = w;
         w.Show();
+        if (center)
+            w.CenterOnCurrentMonitor(windows.Count - 1, windows.Count);
+        w.Activate();
         if (Snoozed)
             w.Hide();
+    }
+    public void ResetPositions()
+    {
+        if (Snoozed)
+            SetSnooze(false);
+        var index = 0;
+        var dpi = windows.Count == 0 ? 1 : Math.Max(1, Native.GetDpiForWindow(Native.Handle(windows.Values.First())) / 96d);
+        var cellWidth = windows.Count == 0 ? 0 : windows.Values.Max(w => w.Width) * dpi;
+        var cellHeight = windows.Count == 0 ? 0 : windows.Values.Max(w => w.Height) * dpi;
+        foreach (var w in windows.Values)
+        {
+            w.CenterOnCurrentMonitor(index++, windows.Count, cellWidth, cellHeight);
+            w.Show();
+            w.Activate();
+        }
+        Save();
+        App.CurrentApp.Shell?.Status("Виджеты перемещены в центр текущего монитора");
+    }
+    public void RevealWidgets()
+    {
+        if (Snoozed)
+            return;
+        foreach (var window in windows.Values)
+        {
+            window.Show();
+            window.Activate();
+        }
     }
     public void Disable(WidgetState s)
     {
@@ -154,17 +188,6 @@ internal sealed class WidgetManager : IDisposable
             Open(s);
         Changed?.Invoke();
     }
-    void CheckDesktopHealth()
-    {
-        foreach (var pair in windows.ToArray())
-            if (pair.Value.HostLost)
-            {
-                windows.Remove(pair.Key);
-                pair.Value.CloseOwned();
-                DesktopStatus = "Настольный слой потерян. Нажмите «Переподключить виджеты» в оформлении.";
-                App.CurrentApp.Shell?.Status(DesktopStatus);
-            }
-    }
     public void ShowOpticsTest()
     {
         var s = new WidgetState { Kind = "clock", Enabled = false, X = 250, Y = 180, Size = "L" };
@@ -179,7 +202,6 @@ internal sealed class WidgetManager : IDisposable
         foreach (var w in windows.Values.ToArray())
             w.CloseOwned();
         windows.Clear();
-        Data.Changed -= CheckDesktopHealth;
         Data.Dispose();
         Wallpaper.Dispose();
         Save();

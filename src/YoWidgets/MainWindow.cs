@@ -8,6 +8,8 @@ internal sealed class MainWindow : Window
         manager = m;
         SourceInitialized += (_, _) => { var dark = 1; Native.DwmSetWindowAttribute(Native.Handle(this), 20, ref dark, 4); };
         Title = "YoWidgets";
+        WindowStyle = WindowStyle.None;
+        System.Windows.Shell.WindowChrome.SetWindowChrome(this, new System.Windows.Shell.WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0) });
         Width = 1100;
         Height = 790;
         MinWidth = 860;
@@ -42,7 +44,7 @@ internal sealed class MainWindow : Window
         AddNav(navigation, "↙   Отключение и удаление", "cleanup");
         Grid.SetRow(navigation, 1);
         sidebar.Children.Add(navigation);
-        var footer = Ui.Stack(Ui.Text("●  Локально. Под вашим контролем.", 10, "Muted"), Ui.Gap(10), Ui.Text("YoWidgets  0.1 · Windows 11", 10, "Muted"));
+        var footer = Ui.Stack(Ui.Text("●  Локально. Под вашим контролем.", 10, "Muted"), Ui.Gap(10), Ui.Text("YoWidgets  0.2 · Windows 11", 10, "Muted"));
         footer.Margin = new Thickness(22);
         Grid.SetRow(footer, 2);
         sidebar.Children.Add(footer);
@@ -78,10 +80,42 @@ internal sealed class MainWindow : Window
         right.Children.Add(status);
         Grid.SetColumn(right, 1);
         shell.Children.Add(right);
-        Content = shell;
+        var frame = new Grid();
+        frame.RowDefinitions.Add(new()
+        {
+            Height = new GridLength(44)
+        });
+        frame.RowDefinitions.Add(new());
+        var titlebar = new Grid { Background = Ui.Brush("Field") };
+        titlebar.ColumnDefinitions.Add(new());
+        titlebar.ColumnDefinitions.Add(new()
+        {
+            Width = GridLength.Auto
+        });
+        var caption = Ui.Text("yo.   /   YoWidgets", 12, "Muted");
+        caption.Margin = new Thickness(22, 0, 0, 0);
+        titlebar.Children.Add(caption);
+        titlebar.MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; else DragMove(); };
+        var windowButtons = new StackPanel { Orientation = Orientation.Horizontal };
+        var minimize = Ui.Button("−", () => WindowState = WindowState.Minimized);
+        minimize.ToolTip = "Свернуть";
+        minimize.Content = new System.Windows.Shapes.Rectangle { Width = 12, Height = 1, Fill = Ui.Brush("Text") };
+        var close = Ui.Button("✕", Close);
+        close.ToolTip = "Закрыть в трей";
+        System.Windows.Automation.AutomationProperties.SetName(minimize, "Свернуть");
+        System.Windows.Automation.AutomationProperties.SetName(close, "Закрыть в трей");
+        windowButtons.Children.Add(minimize);
+        windowButtons.Children.Add(close);
+        Grid.SetColumn(windowButtons, 1);
+        titlebar.Children.Add(windowButtons);
+        frame.Children.Add(titlebar);
+        Grid.SetRow(shell, 1);
+        frame.Children.Add(shell);
+        Content = frame;
         manager.Changed += OnChanged;
-        Closed += (_, _) => manager.Changed -= OnChanged;
+        Closed += (_, _) => { manager.Changed -= OnChanged; page.Content = null; App.CurrentApp.ReleaseUnusedImages(); };
         Select("widgets");
+        Loaded += (_, _) => App.CurrentApp.ReleaseUnusedImages();
         if (manager.DesktopStatus.Length > 0)
             Status(manager.DesktopStatus);
     }
@@ -216,11 +250,11 @@ internal sealed class MainWindow : Window
         body.Children.Add(Ui.Toggle("Показывать секунды", manager.Settings.Seconds, v => { manager.Settings.Seconds = v; manager.Save(); }));
         body.Children.Add(Ui.Toggle("24-часовой формат", manager.Settings.Hour24, v => { manager.Settings.Hour24 = v; manager.Save(); }));
         body.Children.Add(Ui.Toggle("Поверх обычных окон", manager.Settings.Topmost, v => { manager.Settings.Topmost = v; manager.ApplyAppearance(); }));
-        body.Children.Add(Ui.Toggle("Прикреплять к рабочему столу (после перезапуска)", manager.Settings.DesktopMode, v => { manager.Settings.DesktopMode = v; manager.Save(); }));
+        body.Children.Add(Ui.Text("Свободные окна · привязка к Explorer отключена", 12, "Muted"));
         body.Children.Add(Ui.Gap(14));
         body.Children.Add(Ui.Button("Проверить оптику на сетке", manager.ShowOpticsTest));
         body.Children.Add(Ui.Gap(10));
-        body.Children.Add(Ui.Button("Переподключить виджеты", () => { manager.RecoverDesktop(); Status(manager.DesktopStatus.Length > 0 ? manager.DesktopStatus : "Виджеты переподключены"); }));
+        body.Children.Add(Ui.Button("Сбросить позиции по центру экрана", manager.ResetPositions));
         body.Children.Add(Ui.Gap(14));
         body.Children.Add(Ui.Text("Движение учитывает системную настройку анимаций. Snooze скрывает поверхности и останавливает обновления. Поведение виртуальных столов зависит от оболочки Windows.", 12, "Muted"));
         p.Children.Add(Ui.Panel(body, 24));

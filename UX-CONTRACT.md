@@ -15,7 +15,7 @@ Enable/add immediately opens the widget and persists state. Disable closes only 
 
 Missing weather has no invented temperature. Failed refresh preserves previous values and reports error. Media actions use source capabilities and report rejection. Missing notifications consent/identity is visible; local hiding never clears Windows notification history. AI requires configured endpoint/model/key and manual send; cancellation and timeout are visible. Input and key text are never logged.
 
-Async generations and cancellation prevent obsolete work applying after suspension. Settings write via a temporary file and keep a recovery copy. Bad JSON is preserved as .corrupt. Widgets are clamped to an attached work area. Duplicate instance IDs normalize to distinct IDs so cleanup cannot lose a window.
+Async generations and cancellation prevent obsolete work applying after suspension. Settings write via a temporary file and keep a recovery copy. Bad JSON is preserved as .corrupt. Widgets are independent floating windows, with no Explorer parent. They are clamped to an attached work area; reset positions uses a centered grid. Duplicate instance IDs normalize to distinct IDs so cleanup cannot lose a window.
 
 Keyboard: Tab/native controls, native context menus, arrow/Shift+arrow positioning, Escape opens management. File picker popup is intentionally OS-owned. No browser alert/confirm/prompt. The separate removal page describes exactly what the terminal delete button removes before execution. Common system parameter rollback is explicit and conflict-aware.
 

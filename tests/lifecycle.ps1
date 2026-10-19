@@ -69,4 +69,30 @@ foreach($lockedName in @('installation.json','uninstall.ps1')) {
  if (Test-Path -LiteralPath $lockedCase) { throw 'Locked file retry did not finish' }
  Write-Output "PASS retry survives terminal lock on $lockedName"
 }
-Write-Output 'RESULT 8/8 lifecycle cases passed'
+$bundleCase=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+& (Join-Path $root 'scripts/install.ps1') -TestDestination $bundleCase -NoLaunch
+$bundleRoot=Join-Path ([IO.Path]::GetTempPath()) ('.net/YoWidgets/test-'+[Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $bundleRoot | Out-Null
+$bundleOwned=Join-Path $bundleRoot 'own-runtime.dll'
+$bundleForeign=Join-Path $bundleRoot 'my-note.txt'
+Set-Content -LiteralPath $bundleOwned -Value 'test-owned'
+Set-Content -LiteralPath $bundleForeign -Value 'preserve'
+@(@{Path=$bundleRoot;Files=@('own-runtime.dll')}) | ConvertTo-Json -Depth 4 -AsArray | Set-Content -LiteralPath (Join-Path $bundleCase 'data/bundle-cache.json')
+$refused=$false
+try { & (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $bundleCase } catch { $refused=$true }
+if(-not $refused -or -not (Test-Path -LiteralPath $bundleForeign) -or (Test-Path -LiteralPath $bundleOwned)) { throw 'Bundle cache ownership/retry failed' }
+Remove-Item -LiteralPath $bundleForeign
+& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $bundleCase
+if(Test-Path -LiteralPath $bundleRoot) { throw 'Bundle cache retry left root' }
+Write-Output 'PASS exact bundle cache files removed; unknown files preserved and retry succeeds'
+$badBundleCase=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+& (Join-Path $root 'scripts/install.ps1') -TestDestination $badBundleCase -NoLaunch
+$badJournal=Join-Path $badBundleCase 'data/bundle-cache.json'
+@(@{Path=$boundary;Files=@('foreign-sentinel.txt')}) | ConvertTo-Json -Depth 4 -AsArray | Set-Content -LiteralPath $badJournal
+$refused=$false
+try { & (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $badBundleCase } catch { $refused=$true }
+if(-not $refused -or -not (Test-Path -LiteralPath $badJournal)) { throw 'Outside bundle root accepted' }
+Remove-Item -LiteralPath $badJournal
+& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $badBundleCase
+Write-Output 'PASS bundle cache root outside exact temp boundary rejected'
+Write-Output 'RESULT 10/10 lifecycle cases passed'

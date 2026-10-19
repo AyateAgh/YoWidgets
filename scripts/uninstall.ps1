@@ -60,7 +60,31 @@ if (Test-Path -LiteralPath $m.DataRoot) {
  if (-not (Test-Path -LiteralPath $owner)) { throw 'Data ownership record missing; leaving data intact.' }
  $o=Get-Content -LiteralPath $owner -Raw | ConvertFrom-Json
  if ($o.Product -ne 'YoWidgets.Native.v1' -or $o.InstallationId -ne $m.Id) { throw 'Data belongs to another installation' }
- $ownedData=@('settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','owned-images.json.tmp')
+ $bundleJournal=Join-Path $m.DataRoot 'bundle-cache.json'
+ if (Test-Path -LiteralPath $bundleJournal) {
+  $bundleBoundary=[IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) '.net/YoWidgets')).TrimEnd('\')
+  $bundleEntries=@(Get-Content -LiteralPath $bundleJournal -Raw | ConvertFrom-Json)
+  foreach($entry in $bundleEntries) {
+   $bundleRoot=[IO.Path]::GetFullPath($entry.Path).TrimEnd('\')
+   if ([IO.Path]::GetDirectoryName($bundleRoot) -ne $bundleBoundary -or [IO.Path]::GetFileName($bundleRoot) -notmatch '^[a-zA-Z0-9_.+-]{5,128}$') { throw 'Invalid bundle cache root' }
+   Assert-SafeAncestors $bundleRoot
+   Assert-NoReparse $bundleRoot
+   foreach($relative in $entry.Files) {
+    $candidate=[IO.Path]::GetFullPath((Join-Path $bundleRoot $relative))
+    if ([IO.Path]::IsPathRooted($relative) -or -not $candidate.StartsWith($bundleRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid bundle cache member' }
+   }
+  }
+  foreach($entry in $bundleEntries) {
+   $bundleRoot=[IO.Path]::GetFullPath($entry.Path).TrimEnd('\')
+   if (-not (Test-Path -LiteralPath $bundleRoot)) { continue }
+   foreach($relative in $entry.Files) { $candidate=Join-Path $bundleRoot $relative; if(Test-Path -LiteralPath $candidate -PathType Leaf) { Remove-Item -LiteralPath $candidate -Force } }
+   Get-ChildItem -LiteralPath $bundleRoot -Directory -Recurse | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if (@(Get-ChildItem -LiteralPath $_.FullName -Force).Count -eq 0) { Remove-Item -LiteralPath $_.FullName } }
+   if (@(Get-ChildItem -LiteralPath $bundleRoot -Force).Count -gt 0) { throw 'Unknown/locked bundle cache data preserved; retry cleanup after resolving it.' }
+   Remove-Item -LiteralPath $bundleRoot
+  }
+  Remove-Item -LiteralPath $bundleJournal -Force
+ }
+ $ownedData=@('settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','owned-images.json.tmp','bundle-cache.json.tmp')
  foreach($name in $ownedData) { $file=Join-Path $m.DataRoot $name; if (Test-Path -LiteralPath $file -PathType Leaf) { Remove-Item -LiteralPath $file -Force } }
  $imageJournal=Join-Path $m.DataRoot 'owned-images.json'
  $images=Join-Path $m.DataRoot 'images'

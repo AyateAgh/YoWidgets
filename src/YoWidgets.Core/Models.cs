@@ -37,7 +37,11 @@ public sealed class AppSettings
     {
         get; set;
     }
-    public bool DesktopMode { get; set; } = true; public bool LyricsEnabled
+    public int FloatingPlacementVersion
+    {
+        get; set;
+    }
+    public bool DesktopMode { get; set; } = false; public bool LyricsEnabled
     {
         get; set;
     }
@@ -56,6 +60,8 @@ public sealed class AppSettings
     }
     public void Normalize()
     {
+        // Disable the old experimental Explorer parent even for existing settings.
+        DesktopMode = false;
         GlassStrength = Finite(GlassStrength, 1, 0, 2);
         Opacity = Finite(Opacity, .2, 0, .85);
         Blur = Finite(Blur, 12, 0, 28);

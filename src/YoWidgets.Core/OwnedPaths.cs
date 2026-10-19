@@ -2,6 +2,16 @@ namespace YoWidgets.Core;
 
 public static class OwnedPaths
 {
+    public static void EnsureNoReparseAncestors(string path)
+    {
+        var cursor = System.IO.Path.GetFullPath(path);
+        while (!string.IsNullOrEmpty(cursor))
+        {
+            if ((Directory.Exists(cursor) || File.Exists(cursor)) && (File.GetAttributes(cursor) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("Reparse ancestor rejected");
+            cursor = System.IO.Path.GetDirectoryName(cursor);
+        }
+    }
     public static bool IsInside(string root, string path)
     {
         try

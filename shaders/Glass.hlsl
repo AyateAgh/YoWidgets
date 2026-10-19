@@ -10,7 +10,7 @@ float4 main(float2 uv:TEXCOORD):COLOR {
  float2 p=uv*total-pad-size*.5;
  float2 d=abs(p)-(size*.5-geometry.z);
  float dist=length(max(d,0))+min(max(d.x,d.y),0)-geometry.z;
- float coverage=saturate(.7-dist);
+ float coverage=saturate(-dist);
  float edge=max(-dist,0);
  float2 signP=float2(p.x>=0?1:-1,p.y>=0?1:-1);
  float2 g=length(max(d,0))>.001?normalize(max(d,0))*signP:(d.x>d.y?float2(signP.x,0):float2(0,signP.y));
@@ -31,10 +31,13 @@ float4 main(float2 uv:TEXCOORD):COLOR {
  col=lerp(col,lerp(float3(.045,.065,.09),float3(.98,.985,1),optics.z),optics.y);
  float facing=dot(g,normalize(float2(-.55,-.83)));
  float spec=pow(max(facing,0),1.6)+.5*pow(max(-facing,0),2.2);
- col+=(exp(-edge/1.15)*(.13+.57*spec)+exp(-edge/5)*.045)*(.7+.3*optics.x);
+ float rim=exp(-edge/1.2);
+ col+=(rim*(.035+.16*spec)+exp(-edge/5)*.02)*(.7+.3*optics.x);
  col-=.035*exp(-edge/7)*max(g.y,0);
  float2 mouse=lighting.xy*size-size*.5;
  col+=exp(-length(p-mouse)/90)*lighting.z*.035;
- float alpha=coverage;
+ // Premultiplied alpha: real desktop/windows contribute through the material.
+ // Pixels outside the lens are exactly transparent, including padded corners.
+ float alpha=coverage*saturate(.30+optics.y*.30+rim*.16);
  return float4(saturate(col)*alpha,alpha);
 }

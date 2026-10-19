@@ -16,7 +16,7 @@ internal static class Ui
         b.Click += (_, _) => action();
         return b;
     }
-    public static Border Panel(UIElement child, double padding = 20) => new() { Child = child, Padding = new Thickness(padding), CornerRadius = new CornerRadius(18), Background = Brush("Panel"), BorderBrush = Brush("Line"), BorderThickness = new Thickness(1) };
+    public static Border Panel(UIElement child, double padding = 20) => new() { Child = child, Padding = new Thickness(padding), CornerRadius = new CornerRadius(20), Background = Brush("Panel"), BorderBrush = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255)), BorderThickness = new Thickness(1) };
     public static StackPanel Stack(params UIElement[] children)
     {
         var p = new StackPanel();

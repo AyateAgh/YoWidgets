@@ -55,15 +55,15 @@ System Segoe UI Variable fonts cover Cyrillic without network requests. Display 
 
 ## Elevation & Depth
 
-Quiet management panels have a single hairline border. Optical widget surfaces use a preblurred wallpaper source, SDF normal/refraction and rim lighting; only the background passes through the shader. No always-running decorative render loop. Static scenery redraws on geometry or source changes and pointer events.
+Quiet management panels have a single hairline border. Optical widget surfaces use a preblurred wallpaper source, SDF normal/refraction and rim lighting; only the background passes through the shader. No always-running decorative render loop. The glass shader emits premultiplied alpha; the desktop and underlying windows remain visible. Unsupported shaders use a translucent gradient. Static scenery redraws on geometry or source changes and pointer events.
 
 ## Shapes
 
-10px controls, 18px panels, 28px glass radius (clamped on small widgets). Rounded controls keep visible focus and pressed/disabled states. Windows titlebar stays native with dark DWM appearance.
+10px controls, 18px panels, 28px glass radius (clamped on small widgets). Rounded controls keep visible focus and pressed/disabled states. Management uses a custom 44px dark titlebar with native resize behavior and named minimize/close controls. Five-pixel rounded scrollbar thumbs use invisible tracks and no arrow buttons. Catalog panels have a 1px #20FFFFFF border.
 
 ## Components
 
-Ui.Button owns hover/focus/disabled/primary behavior. Ui.Toggle and Controls.xaml own keyboard-accessible switches. Ui.Input and PasswordBox own local fields; sensitive values masked. OS-owned file dialogs are intentional. Native scrollbars remain visible with shared colors. Status text is a stable live region at the bottom, not a disappearing critical error.
+Ui.Button owns hover/focus/disabled/primary behavior. Ui.Toggle and Controls.xaml own keyboard-accessible switches. Ui.Input and PasswordBox own local fields; sensitive values masked. OS-owned file dialogs are intentional. Authored narrow scrollbars remain visible with shared colors. Status text is a stable live region at the bottom, not a disappearing critical error.
 
 The calendar displays dates rather than editing them. Native context menus own widget size selection; authored dropdown geometry is not needed. Optical transitions respect SystemParameters.ClientAreaAnimation. Player expansion is 220ms and interrupted animations must settle at the latest requested size. Snooze removes surfaces and stops periodic work.
 
