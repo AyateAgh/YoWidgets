@@ -1,0 +1,8 @@
+{
+ "profile":"product-admin","sourceRoots":["src/YoWidgets"],"locale":"ru-RU","canonicalMap":"UX-CONTRACT.md",
+ "requiredCapabilities":["Form","Select/Listbox","Date","Scrollbar","Toast","CRUD"],
+ "ownership":{"Select/Listbox":"native","Date":"display"},
+ "requiredCommands":["unit","build"],
+ "commands":{"unit":".tools/dotnet/dotnet.exe run --project tests/YoWidgets.Tests -c Release","build":"powershell -NoProfile -File scripts/build.ps1"},
+ "evidence":{"failurePaths":"tests/YoWidgets.Tests/Program.cs","crudFullFlow":"docs/verification.md"}
+}

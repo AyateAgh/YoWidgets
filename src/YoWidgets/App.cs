@@ -1,0 +1,15 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.InteropServices;
+namespace YoWidgets;
+internal sealed class App : System.Windows.Application {
+ public static string DataRoot{get;private set;}=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"YoWidgets");
+ public static App CurrentApp=>(App)Current;public WidgetManager Manager{get;private set;}=null!;public MainWindow? Shell{get;private set;}
+ System.Windows.Forms.NotifyIcon? tray;Mutex? mutex;
+ [STAThread]public static void Main(string[] args){if(args.Contains("--data-dir")){var i=Array.IndexOf(args,"--data-dir");if(i+1<args.Length)DataRoot=Path.GetFullPath(args[i+1]);}Directory.CreateDirectory(DataRoot);var app=new App{ShutdownMode=ShutdownMode.OnExplicitShutdown};app.DispatcherUnhandledException+=(_,e)=>{Log("ui",e.Exception);e.Handled=true;app.Shell?.Status("Ошибка интерфейса записана в журнал. Можно перезапустить приложение.");};AppDomain.CurrentDomain.UnhandledException+=(_,e)=>Log("fatal",e.ExceptionObject as Exception??new Exception("Unknown failure"));app.Startup+=(_,_)=>app.Start(args);app.Run();}
+ void Start(string[] args){mutex=new Mutex(true,"Local\\YoWidgets-"+Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(DataRoot.ToUpperInvariant())))[..20],out var first);if(!first){Shutdown();return;}CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("ru-RU");CultureInfo.CurrentUICulture=CultureInfo.CurrentCulture;Ui.Theme();Manager=new WidgetManager(DataRoot,args.Contains("--no-desktop"));tray=new System.Windows.Forms.NotifyIcon{Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Text="YoWidgets",Visible=true};var menu=new System.Windows.Forms.ContextMenuStrip();menu.Items.Add("Открыть YoWidgets",null,(_,_)=>Dispatcher.Invoke(ShowShell));menu.Items.Add("Snooze / продолжить",null,(_,_)=>Dispatcher.Invoke(()=>Manager.SetSnooze(!Manager.Snoozed)));menu.Items.Add("Отключить всё",null,(_,_)=>Dispatcher.Invoke(Manager.DisableAll));menu.Items.Add("Выйти",null,(_,_)=>Dispatcher.Invoke(ExitApp));tray.ContextMenuStrip=menu;tray.DoubleClick+=(_,_)=>Dispatcher.Invoke(ShowShell);ShowShell();if(args.Contains("--optics-test"))Manager.ShowOpticsTest();Trace("startup",$"Version 0.1.0; WPF tier {RenderCapability.Tier>>16}; OS {Environment.OSVersion.Version}");}
+ public void ShowShell(){if(Shell==null){Shell=new MainWindow(Manager);Shell.Closed+=(_,_)=>Shell=null;}Shell.Show();Shell.WindowState=WindowState.Normal;Shell.Activate();}
+ public void ExitApp(){Manager.Dispose();tray?.Dispose();mutex?.Dispose();Shutdown();}
+ public static void Log(string area,Exception e){try{Directory.CreateDirectory(DataRoot);var file=Path.Combine(DataRoot,"app.log");if(File.Exists(file)&&new FileInfo(file).Length>512_000)File.Move(file,file+".old",true);File.AppendAllText(file,$"{DateTimeOffset.Now:o} {area}: {e.GetType().Name}: {e.Message}\n");}catch{}}
+ public static void Trace(string area,string message){try{File.AppendAllText(Path.Combine(DataRoot,"app.log"),$"{DateTimeOffset.Now:o} {area}: {message}\n");}catch{}}
+}

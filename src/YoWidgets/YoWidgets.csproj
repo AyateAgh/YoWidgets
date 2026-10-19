@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><ApplicationManifest>app.manifest</ApplicationManifest><ApplicationIcon>../../assets/YoWidgets.ico</ApplicationIcon><AssemblyName>YoWidgets</AssemblyName><Version>0.1.0</Version></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../YoWidgets.Core/YoWidgets.Core.csproj"/><PackageReference Include="System.Management" Version="10.0.0"/><Resource Include="../../shaders/Glass.ps" Link="Glass.ps"/></ItemGroup>
+</Project>
