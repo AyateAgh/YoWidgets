@@ -6,7 +6,9 @@ internal sealed class WallpaperProvider : IDisposable
     readonly IDesktopWallpaper? desktop;
     // Only detached, widget-sized raster snapshots are retained, never full wallpaper frames.
     readonly Dictionary<string, BitmapSource> cache = [];
-    public long CachedPixelBytes => cache.Values.Sum(b => (long)b.PixelWidth * b.PixelHeight * 4);
+    readonly Dictionary<string, BitmapSource> movingCache = [];
+    public int DecodeCount { get; private set; }
+    public long CachedPixelBytes => cache.Values.Concat(movingCache.Values).Sum(b => (long)b.PixelWidth * b.PixelHeight * 4);
     public WallpaperProvider()
     {
         try
@@ -15,8 +17,8 @@ internal sealed class WallpaperProvider : IDisposable
         }
         catch (Exception e) { App.Log("wallpaper", e); }
     }
-    public void ClearCache() => cache.Clear();
-    public Brush GetBrush(RectD sample, bool checker = false)
+    public void ClearCache(bool all = false) { cache.Clear(); if(all) movingCache.Clear(); }
+    public Brush GetBrush(RectD sample, bool checker = false, bool moving = false)
     {
         if (checker)
             return Checker(sample);
@@ -50,16 +52,19 @@ internal sealed class WallpaperProvider : IDisposable
                 var a = System.Windows.Forms.SystemInformation.VirtualScreen;
                 screen = new(a.X, a.Y, a.Width, a.Height);
             }
-            var key = $"{path}|{File.GetLastWriteTimeUtc(path).Ticks}|{sample}|{screen}|{mode}|{c}";
-            if (!cache.TryGetValue(key, out var image))
+            var key = $"{path}|{File.GetLastWriteTimeUtc(path).Ticks}|{sample}|{screen}|{mode}|{c}|{moving}";
+            var images = moving ? movingCache : cache;
+            if (!images.TryGetValue(key, out var image))
             {
+                DecodeCount++;
                 using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreImageCache, BitmapCacheOption.OnDemand);
                 var source = decoder.Frames[0];
                 var layout = WallpaperLayout.Calculate(source.PixelWidth, source.PixelHeight, screen, mode);
                 var visual = new DrawingVisual();
-                var width = Math.Clamp((int)Math.Ceiling(sample.Width), 1, 900);
-                var height = Math.Clamp((int)Math.Ceiling(sample.Height), 1, 650);
+                var scale = Math.Min(1, Math.Min((moving ? 1600d : 900d) / sample.Width, (moving ? 1000d : 650d) / sample.Height));
+                var width = Math.Max(1, (int)Math.Ceiling(sample.Width * scale));
+                var height = Math.Max(1, (int)Math.Ceiling(sample.Height * scale));
                 using (var dc = visual.RenderOpen())
                 {
                     dc.PushTransform(new ScaleTransform(width / sample.Width, height / sample.Height));
@@ -87,9 +92,8 @@ internal sealed class WallpaperProvider : IDisposable
                 snapshot.Render(visual);
                 snapshot.Freeze();
                 image = snapshot;
-                if (cache.Count >= 8)
-                    cache.Clear();
-                cache[key] = image;
+                if (images.Count >= (moving ? 2 : 8)) images.Clear();
+                images[key] = image;
                 // No decoder, stream, DrawingVisual or CroppedBitmap escapes this scope.
             }
             var brush = new ImageBrush(image) { Stretch = Stretch.Fill };
@@ -108,7 +112,7 @@ internal sealed class WallpaperProvider : IDisposable
     }
     public void Dispose()
     {
-        ClearCache();
+        ClearCache(all:true);
         if (desktop != null)
             Marshal.ReleaseComObject(desktop);
     }

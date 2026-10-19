@@ -5,6 +5,10 @@ namespace YoWidgets;
 
 internal sealed class MediaService : IDisposable
 {
+    readonly MediaArtwork artwork = new();
+    CancellationTokenSource artworkWork = new();
+    string artworkKey = "";
+    public string ArtworkOrigin { get; private set; } = "none";
     GlobalSystemMediaTransportControlsSessionManager? manager; GlobalSystemMediaTransportControlsSession? session; int generation; int lifecycle; bool starting; bool restartRequested; bool disposed; bool suspended; string? selectedId; DateTimeOffset positionTime; double position;
     public IReadOnlyList<string> Sources => manager?.GetSessions().Select(s => s.SourceAppUserModelId).Distinct().ToArray() ?? Array.Empty<string>(); public void SelectSource(string? id)
     {
@@ -100,12 +104,17 @@ internal sealed class MediaService : IDisposable
     {
         Detach();
         session = next;
+        artworkWork.Cancel();
+        artworkWork.Dispose();
+        artworkWork = new();
+        artworkKey = "";
         generation++;
         if (session == null)
         {
             Title = "Музыка рядом";
             Artist = "Откройте совместимый плеер";
             Artwork = null;
+            ArtworkOrigin = "none";
             Playing = false;
             Duration = position = 0;
             CanPlay = CanNext = CanPrevious = CanSeek = false;
@@ -117,11 +126,11 @@ internal sealed class MediaService : IDisposable
         session.TimelinePropertiesChanged += TimelineChanged;
         _ = RefreshAsync();
     }
-    void PropertiesChanged(GlobalSystemMediaTransportControlsSession s, MediaPropertiesChangedEventArgs e) => DispatchRefresh(); void PlaybackChanged(GlobalSystemMediaTransportControlsSession s, PlaybackInfoChangedEventArgs e) => DispatchRefresh(); void TimelineChanged(GlobalSystemMediaTransportControlsSession s, TimelinePropertiesChangedEventArgs e) => DispatchRefresh();
-    void DispatchRefresh()
+    void PropertiesChanged(GlobalSystemMediaTransportControlsSession s, MediaPropertiesChangedEventArgs e) => DispatchRefresh(true); void PlaybackChanged(GlobalSystemMediaTransportControlsSession s, PlaybackInfoChangedEventArgs e) => DispatchRefresh(); void TimelineChanged(GlobalSystemMediaTransportControlsSession s, TimelinePropertiesChangedEventArgs e) => DispatchRefresh();
+    void DispatchRefresh(bool artworkChanged = false)
     {
         if (!suspended)
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(() => { _ = RefreshAsync(); });
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() => { if (artworkChanged) artworkKey = ""; _ = RefreshAsync(); });
     }
     async Task RefreshAsync()
     {
@@ -151,33 +160,35 @@ internal sealed class MediaService : IDisposable
             Duration = Math.Max(0, (t.EndTime - t.StartTime).TotalSeconds);
             position = t.Position.TotalSeconds;
             positionTime = DateTimeOffset.Now;
-            if (props.Thumbnail != null)
+            var key = current.SourceAppUserModelId + "|" + Title + "|" + Artist + "|" + props.AlbumTitle + "|" + (props.Thumbnail != null);
+            if (key != artworkKey)
             {
-                using var stream = await props.Thumbnail.OpenReadAsync();
-                if (stream.Size <= 8_000_000)
-                {
-                    using var reader = new DataReader(stream.GetInputStreamAt(0));
-                    await reader.LoadAsync((uint)stream.Size);
-                    var bytes = new byte[(int)stream.Size];
-                    reader.ReadBytes(bytes);
-                    if (suspended || version != generation)
-                        return;
-                    var image = new BitmapImage();
-                    image.BeginInit();
-                    image.StreamSource = new MemoryStream(bytes);
-                    image.CacheOption = BitmapCacheOption.OnLoad;
-                    image.DecodePixelWidth = 400;
-                    image.EndInit();
-                    image.Freeze();
-                    Artwork = image;
-                }
-            }
-            else
+                artworkKey = key;
+                artworkWork.Cancel();
+                artworkWork.Dispose();
+                artworkWork = new();
                 Artwork = null;
+                ArtworkOrigin = "none";
+                _ = LoadArtworkAsync(props.Thumbnail, current.SourceAppUserModelId, Title, Artist, props.Subtitle, key, lifecycle, artworkWork.Token);
+            }
             Error = "";
             Changed?.Invoke();
         }
         catch (Exception e) { Error = "Не удалось обновить данные плеера"; App.Log("media-refresh", e); Changed?.Invoke(); }
+    }
+    async Task LoadArtworkAsync(IRandomAccessStreamReference? thumbnail, string source, string title, string artist, string subtitle, string key, int stamp, CancellationToken ct)
+    {
+        try
+        {
+            var result = await artwork.ResolveAsync(thumbnail, source, title, artist, subtitle, ct);
+            if (ct.IsCancellationRequested || suspended || disposed || lifecycle != stamp || artworkKey != key)
+                return;
+            Artwork = result.Image;
+            ArtworkOrigin = result.Origin;
+            App.Trace("media-artwork", result.Origin);
+            Changed?.Invoke();
+        }
+        catch (OperationCanceledException) { }
     }
     public void Tick()
     {
@@ -209,6 +220,8 @@ internal sealed class MediaService : IDisposable
     public void Suspend()
     {
         suspended = true;
+        artworkWork.Cancel();
+        artworkKey = "";
         lifecycle++;
         restartRequested = false;
         generation++;
@@ -223,5 +236,7 @@ internal sealed class MediaService : IDisposable
         session = null;
         manager = null;
         Artwork = null;
+        artworkWork.Dispose();
+        artwork.Clear();
     }
 }

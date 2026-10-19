@@ -44,7 +44,7 @@ internal sealed class MainWindow : Window
         AddNav(navigation, "↙   Отключение и удаление", "cleanup");
         Grid.SetRow(navigation, 1);
         sidebar.Children.Add(navigation);
-        var footer = Ui.Stack(Ui.Text("●  Локально. Под вашим контролем.", 10, "Muted"), Ui.Gap(10), Ui.Text("YoWidgets  0.2 · Windows 11", 10, "Muted"));
+        var footer = Ui.Stack(Ui.Text("●  Локально. Под вашим контролем.", 10, "Muted"), Ui.Gap(10), Ui.Text("YoWidgets  0.3 · Windows 11", 10, "Muted"));
         footer.Margin = new Thickness(22);
         Grid.SetRow(footer, 2);
         sidebar.Children.Add(footer);

@@ -47,7 +47,7 @@ Dark management shell, quiet slate panels and blue active controls. Widget conte
 
 ## Typography
 
-System Segoe UI Variable fonts cover Cyrillic without network requests. Display heading 30px/semibold, navigation and body 13–15px, explanatory labels 11–12px. Clock type is 42–60px and scales inside constrained frames. Numbers and capability states are real data.
+System Segoe UI Variable fonts cover Cyrillic without network requests. Display heading 30px/semibold, navigation and body 13–15px, explanatory labels 11–12px. Clock type is 47–76px and scales inside constrained frames. Numbers and capability states are real data.
 
 ## Layout
 
@@ -59,7 +59,7 @@ Quiet management panels have a single hairline border. Optical widget surfaces u
 
 ## Shapes
 
-10px controls, 18px panels, 28px glass radius (clamped on small widgets). Rounded controls keep visible focus and pressed/disabled states. Management uses a custom 44px dark titlebar with native resize behavior and named minimize/close controls. Five-pixel rounded scrollbar thumbs use invisible tracks and no arrow buttons. Catalog panels have a 1px #20FFFFFF border.
+10px controls, 18px panels, 32px glass radius (clamped on small widgets). Rounded controls keep visible focus and pressed/disabled states. Management uses a custom 44px dark titlebar with native resize behavior and named minimize/close controls. Five-pixel rounded scrollbar thumbs use invisible tracks and no arrow buttons. Catalog panels have a 1px #20FFFFFF border.
 
 ## Components
 
@@ -74,3 +74,11 @@ The calendar displays dates rather than editing them. Native context menus own w
 - Do keep native keyboard access and non-drag positioning.
 - Don't describe an untested virtual desktop mode as officially pinned.
 - Don't substitute Acrylic and a white outline for verified refraction.
+
+## Material and player revision 0.3
+
+References: both local examples videos and Apple WWDC25 Meet Liquid Glass (https://developer.apple.com/videos/play/wwdc2025/219/). Adaptation uses a quiet center, broad refracting meniscus, directional highlights and restrained RGB dispersion. It is a wallpaper-based WPF material, not Apple native glass or refraction of arbitrary windows. Motion respects Windows reduced-animation preference.
+
+WidgetVisuals owns vector symbols, dynamic widget ink, circular transport buttons and pill actions. WidgetCards owns aligned clock, weather and calendar layouts. MusicView uses a 54px rounded cover, truncating metadata, independent time columns and five evenly spaced transport controls. Cover column collapses completely when no image is available. Website logos remain 88px in the expanded player; track artwork is 190px. Compact and expanded surfaces are 184/410 DIP tall.
+
+Native DragMove owns mouse tracking. WallpaperProvider prepares a bounded monitor atlas at idle; the motion path only changes its Viewbox. CompositionTarget.Rendering is subscribed only during motion/size animation and removed afterwards. A final cropped background is refreshed after settling. Drag diagnostics distinguish preparation time, loop time and actual decoder misses.

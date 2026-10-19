@@ -34,6 +34,7 @@ internal sealed class WidgetManager : IDisposable
         ForceNormal = forceNormal;
         Store = new(Path.Combine(root, "settings.json"));
         Settings = Store.Load();
+        WidgetVisuals.Tone(Settings.Light);
         Data = new DataServices(this);
         var migrate = Settings.FloatingPlacementVersion < 1;
         foreach (var s in Settings.Widgets.Where(s => s.Enabled))
@@ -142,6 +143,7 @@ internal sealed class WidgetManager : IDisposable
         foreach (var s in Settings.Widgets.ToArray())
             Disable(s);
         Data.Suspend();
+        Wallpaper.ClearCache(all:true);
         Snoozed = true;
         StartupRegistration.Set(false);
         Save();
@@ -155,6 +157,7 @@ internal sealed class WidgetManager : IDisposable
         if (snooze)
         {
             Data.Suspend();
+            Wallpaper.ClearCache(all:true);
             foreach (var w in windows.Values.ToArray())
                 w.CloseOwned();
             windows.Clear();
@@ -169,6 +172,7 @@ internal sealed class WidgetManager : IDisposable
     }
     public void ApplyAppearance()
     {
+        WidgetVisuals.Tone(Settings.Light);
         Settings.Normalize();
         foreach (var w in windows.Values)
         {

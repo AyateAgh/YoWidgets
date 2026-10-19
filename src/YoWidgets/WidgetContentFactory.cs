@@ -6,28 +6,20 @@ internal static class WidgetContentFactory
     static Brush White => App.CurrentApp.Manager?.Settings.Light == true ? new SolidColorBrush(Color.FromRgb(18, 31, 49)) : Brushes.White; static Brush Faded => new SolidColorBrush(Color.FromArgb(205, 245, 249, 255));
     static TextBlock T(string text, double size = 14, bool bold = false)
     {
-        var t = Ui.Text(text, size, weight: bold ? FontWeights.SemiBold : FontWeights.Normal);
-        t.Foreground = White;
+        var t = WidgetVisuals.Label(text, size, bold);
         return t;
     }
     static Button Small(string text, Action action)
     {
-        var b = Ui.Button(text, action);
-        b.Padding = new Thickness(9, 5, 9, 5);
-        b.MinHeight = 28;
-        b.Margin = new Thickness(2);
-        b.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-        b.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 255, 255, 255));
-        b.Foreground = White;
-        return b;
+        return WidgetVisuals.Pill(text, action);
     }
     public static FrameworkElement Create(WidgetManager m, WidgetState s, WidgetWindow? window = null, bool preview = false)
     {
         return s.Kind switch
         {
-            "clock" => Clock(m, s),
-            "calendar" => Calendar(m),
-            "weather" => Weather(m, s),
+            "clock" => WidgetCards.Clock(m, s),
+            "calendar" => WidgetCards.Calendar(m),
+            "weather" => WidgetCards.Weather(m, s),
             "music" => Music(m, window, preview),
             "photo" => Photo(m, s),
             "focus" => Focus(m),
@@ -42,222 +34,15 @@ internal static class WidgetContentFactory
         root.Loaded += (_, _) => { data.Changed += refresh; refresh(); };
         root.Unloaded += (_, _) => data.Changed -= refresh;
     }
-    static FrameworkElement Clock(WidgetManager m, WidgetState s)
-    {
-        var p = new Grid();
-        var digital = Ui.Stack(T("", 12), T("", s.Size == "S" ? 42 : 60, true), T("", 12));
-        digital.VerticalAlignment = VerticalAlignment.Center;
-        digital.HorizontalAlignment = HorizontalAlignment.Center;
-        var analog = new AnalogClock();
-        p.Children.Add(new Viewbox { Child = digital, Stretch = Stretch.Uniform, Margin = new Thickness(2) });
-        p.Children.Add(analog);
-        void Update()
-        {
-            var now = DateTime.Now;
-            digital.Visibility = m.Settings.Analog ? Visibility.Collapsed : Visibility.Visible;
-            ((Viewbox)p.Children[0]).Visibility = digital.Visibility;
-            analog.Visibility = m.Settings.Analog ? Visibility.Visible : Visibility.Collapsed;
-            analog.Time = now;
-            analog.Seconds = m.Settings.Seconds;
-            analog.InvalidateVisual();
-            ((TextBlock)digital.Children[0]).Text = now.ToString("dddd, d MMMM");
-            ((TextBlock)digital.Children[1]).Text = now.ToString(m.Settings.Hour24 ? (m.Settings.Seconds ? "HH:mm:ss" : "HH:mm") : (m.Settings.Seconds ? "h:mm:ss" : "h:mm"));
-            ((TextBlock)digital.Children[2]).Text = "Системное время";
-        }
-        Subscribe(p, m.Data, Update);
-        return p;
-    }
-    static FrameworkElement Calendar(WidgetManager m)
-    {
-        var now = DateTime.Today;
-        var p = Ui.Stack(T(now.ToString("MMMM yyyy"), 17, true), Ui.Gap(10));
-        var grid = new UniformGrid { Columns = 7, Height = 104 };
-        foreach (var d in new[] { "П", "В", "С", "Ч", "П", "С", "В" })
-        {
-            var h = T(d, 11);
-            h.HorizontalAlignment = HorizontalAlignment.Center;
-            h.Opacity = .65;
-            grid.Children.Add(h);
-        }
-        var first = new DateTime(now.Year, now.Month, 1);
-        for (int i = 0; i < ((int)first.DayOfWeek + 6) % 7; i++)
-            grid.Children.Add(new Border());
-        for (int i = 1; i <= DateTime.DaysInMonth(now.Year, now.Month); i++)
-        {
-            var text = T(i.ToString(), 12, i == now.Day);
-            text.HorizontalAlignment = HorizontalAlignment.Center;
-            var b = new Border { Child = text, Padding = new Thickness(1, 3, 1, 3), CornerRadius = new CornerRadius(7) };
-            if (i == now.Day)
-                b.Background = Ui.Brush("Accent");
-            grid.Children.Add(b);
-        }
-        p.Children.Add(grid);
-        Subscribe(p, m.Data, () => { if (DateTime.Today != now) { var replacement = Calendar(m); p.Children.Clear(); p.Children.Add(replacement); now = DateTime.Today; } });
-        return p;
-    }
-    static FrameworkElement Weather(WidgetManager m, WidgetState s)
-    {
-        var city = T("Погода", 14, true);
-        var degrees = T("—°", 50);
-        var condition = T("Выберите город в настройках", 12);
-        var forecast = T("", 11);
-        var p = Ui.Stack(city, degrees, condition, Ui.Gap(10), forecast);
-        void Update()
-        {
-            var w = m.Data.Weather;
-            city.Text = w.Temperature == null ? m.Settings.City : w.City;
-            degrees.Text = w.Temperature is double v ? Math.Round(m.Settings.Fahrenheit ? v * 1.8 + 32 : v) + "°" : "—°";
-            condition.Text = w.Loading ? "Обновляем…" : w.Error.Length > 0 ? w.Error : w.Condition + (w.Temperature != null ? $"  ↑{(m.Settings.Fahrenheit ? w.High * 1.8 + 32 : w.High):0}°  ↓{(m.Settings.Fahrenheit ? w.Low * 1.8 + 32 : w.Low):0}°" : "");
-            forecast.Text = w.ForecastFor(m.Settings.Fahrenheit, s.Size == "L");
-            p.ToolTip = w.Updated == null ? "Погода ещё не обновлялась" : w.Source + " · " + w.Updated.Value.ToLocalTime().ToString("g");
-            forecast.Visibility = s.Size == "S" ? Visibility.Collapsed : Visibility.Visible;
-        }
-        Subscribe(p, m.Data, Update);
-        return p;
-    }
-    static FrameworkElement Music(WidgetManager m, WidgetWindow? window, bool preview)
-    {
-        var media = m.Data.Media;
-        var root = new Grid();
-        root.RowDefinitions.Add(new()
-        {
-            Height = GridLength.Auto
-        });
-        root.RowDefinitions.Add(new()
-        {
-            Height = new GridLength(1, GridUnitType.Star)
-        });
-        root.RowDefinitions.Add(new()
-        {
-            Height = GridLength.Auto
-        });
-        var top = new Grid();
-        top.ColumnDefinitions.Add(new()
-        {
-            Width = new GridLength(52)
-        });
-        top.ColumnDefinitions.Add(new());
-        top.ColumnDefinitions.Add(new()
-        {
-            Width = GridLength.Auto
-        });
-        var image = new Image { Width = 46, Height = 46, Stretch = Stretch.UniformToFill };
-        var art = new Border { Width = 46, Height = 46, CornerRadius = new CornerRadius(9), Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), Child = image, ClipToBounds = true };
-        top.Children.Add(art);
-        var title = T("Музыка рядом", 14, true);
-        title.TextTrimming = TextTrimming.CharacterEllipsis;
-        title.TextWrapping = TextWrapping.NoWrap;
-        var artist = T("Откройте плеер", 11);
-        artist.Opacity = .72;
-        artist.TextTrimming = TextTrimming.CharacterEllipsis;
-        artist.TextWrapping = TextWrapping.NoWrap;
-        var labels = Ui.Stack(title, Ui.Gap(3), artist);
-        labels.Margin = new Thickness(8, 0, 4, 0);
-        Grid.SetColumn(labels, 1);
-        top.Children.Add(labels);
-        var expand = Small("↗", () => window?.ToggleExpanded());
-        expand.ToolTip = "Раскрыть плеер";
-        Grid.SetColumn(expand, 2);
-        top.Children.Add(expand);
-        root.Children.Add(top);
-        var middle = new Grid { Margin = new Thickness(0, 12, 0, 8) };
-        var largeArt = new Image { Stretch = Stretch.Uniform, MaxHeight = 170, Visibility = Visibility.Collapsed };
-        var lyrics = T("", 13);
-        lyrics.TextAlignment = TextAlignment.Center;
-        lyrics.Visibility = Visibility.Collapsed;
-        middle.Children.Add(largeArt);
-        middle.Children.Add(lyrics);
-        Grid.SetRow(middle, 1);
-        root.Children.Add(middle);
-        var bottom = new StackPanel();
-        var seek = new Slider { Minimum = 0, Maximum = 1, Margin = new Thickness(0, 0, 0, 3) };
-        bool updating = false;
-        seek.AddHandler(Thumb.DragCompletedEvent, new DragCompletedEventHandler(async (_, _) => { if (!updating) await media.Command("seek", seek.Value); }));
-        seek.PreviewMouseLeftButtonUp += async (_, _) => { if (!updating && media.CanSeek) await media.Command("seek", seek.Value); };
-        bottom.Children.Add(seek);
-        var times = T("—:—", 10);
-        times.Opacity = .65;
-        bottom.Children.Add(times);
-        var controls = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        var shuffle = Small("⤨", async () => await media.Command("shuffle"));
-        shuffle.ToolTip = "Перемешивание";
-        var previous = Small("◀◀", async () => await media.Command("previous"));
-        previous.ToolTip = "Предыдущий трек";
-        var play = Small("▶", async () => await media.Command("play"));
-        play.ToolTip = "Воспроизведение / пауза";
-        var next = Small("▶▶", async () => await media.Command("next"));
-        next.ToolTip = "Следующий трек";
-        var repeat = Small("↻", async () => await media.Command("repeat"));
-        repeat.ToolTip = "Повтор";
-        var words = Small("≡", () => { lyrics.Visibility = lyrics.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible; largeArt.Visibility = lyrics.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible; });
-        words.ToolTip = "Текст песни";
-        foreach (var b in new[] { shuffle, previous, play, next, repeat, words })
-            controls.Children.Add(b);
-        bottom.Children.Add(controls);
-        Grid.SetRow(bottom, 2);
-        root.Children.Add(bottom);
-        void Update()
-        {
-            var expanded = window?.Expanded == true;
-            art.Width = art.Height = image.Width = image.Height = expanded ? 46 : 30;
-            title.FontSize = expanded ? 14 : 12;
-            artist.FontSize = expanded ? 11 : 10;
-            middle.Margin = expanded ? new Thickness(0, 12, 0, 8) : new Thickness(0);
-            times.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            seek.Height = expanded ? 18 : 10;
-            foreach (Button button in controls.Children)
-            {
-                button.MinHeight = expanded ? 28 : 22;
-                button.Padding = expanded ? new Thickness(9, 5, 9, 5) : new Thickness(8, 2, 8, 2);
-            }
-            title.Text = media.Title;
-            artist.Text = media.Error.Length > 0 ? media.Error : media.Artist;
-            image.Source = largeArt.Source = media.Artwork;
-            play.Content = media.Playing ? "Ⅱ" : "▶";
-            play.IsEnabled = media.Available && media.CanPlay && !preview;
-            previous.IsEnabled = media.CanPrevious && !preview;
-            next.IsEnabled = media.CanNext && !preview;
-            shuffle.IsEnabled = media.CanShuffle && !preview;
-            repeat.IsEnabled = media.CanRepeat && !preview;
-            shuffle.Opacity = media.Shuffle ? 1 : .55;
-            repeat.Opacity = media.Repeat > 0 ? 1 : .55;
-            updating = true;
-            if (!seek.IsMouseCaptureWithin)
-            {
-                seek.Maximum = Math.Max(1, media.Duration);
-                seek.Value = media.Position;
-            }
-            seek.IsEnabled = media.CanSeek && !preview;
-            updating = false;
-            times.Text = $"{Format(media.Position)}                         {Format(media.Duration)}";
-            words.IsEnabled = m.Settings.LyricsEnabled && !preview;
-            lyrics.Text = m.Data.LyricLines.Count > 0 ? string.Join("\n", m.Data.LyricLines.Where(l => l.Seconds <= media.Position + 5).TakeLast(3).Select(l => l.Text)) : m.Data.LyricsText;
-            if (window?.Expanded == true)
-            {
-                if (lyrics.Visibility != Visibility.Visible)
-                    largeArt.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                largeArt.Visibility = lyrics.Visibility = Visibility.Collapsed;
-            }
-        }
-        if (window != null)
-        {
-            SizeChangedEventHandler resized = (_, _) => Update();
-            root.Loaded += (_, _) => window.SizeChanged += resized;
-            root.Unloaded += (_, _) => window.SizeChanged -= resized;
-        }
-        Subscribe(root, m.Data, Update);
-        return root;
-    }
+    static FrameworkElement Music(WidgetManager m, WidgetWindow? window, bool preview) => new MusicView(m, window, preview);
     static string Format(double sec) => $"{(int)sec / 60}:{(int)sec % 60:00}";
     static FrameworkElement Photo(WidgetManager m, WidgetState s)
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
-        var label = T("Выберите фотографию", 13);
+        var label = T("Ваше фото", 13);
         label.HorizontalAlignment = HorizontalAlignment.Center;
         var p = new Grid();
+        p.SizeChanged += (_, _) => p.Clip = new RectangleGeometry(new Rect(0, 0, p.ActualWidth, p.ActualHeight), 18, 18);
         p.Children.Add(image);
         p.Children.Add(label);
         void Load()
@@ -286,19 +71,36 @@ internal static class WidgetContentFactory
     }
     static FrameworkElement Focus(WidgetManager m)
     {
-        var title = T("Фокус", 14, true);
-        var timer = T("25:00", 46, true);
+        var title = T("Фокус", 13, true);
+        var timer = T("25:00", 44);
+        timer.FontWeight = FontWeights.Light;
+        timer.FontFamily = new("Segoe UI Variable Display");
         var desc = T("Время для одного дела", 12);
-        var actions = new WrapPanel();
-        actions.Children.Add(Small("25 минут", () => m.Data.StartFocus(25)));
-        actions.Children.Add(Small("Стоп", m.Data.StopFocus));
-        actions.Children.Add(Small("Snooze", () => m.SetSnooze(true)));
-        var p = Ui.Stack(title, timer, desc, Ui.Gap(8), actions);
+        var actions = new UniformGrid { Columns = 3 };
+        foreach (var button in new[] { WidgetVisuals.IconButton("play", "Начать 25 минут", () => m.Data.StartFocus(25), 30, true), WidgetVisuals.IconButton("stop", "Остановить фокус", m.Data.StopFocus, 30), WidgetVisuals.IconButton("moon", "Snooze — приостановить виджеты", () => m.SetSnooze(true), 30) })
+        {
+            button.HorizontalAlignment = HorizontalAlignment.Center;
+            actions.Children.Add(button);
+        }
+        var heading = new StackPanel { Orientation = Orientation.Horizontal };
+        heading.Children.Add(WidgetVisuals.Icon("moon", 16));
+        title.Margin = new Thickness(8, 0, 0, 0);
+        heading.Children.Add(title);
+        var p = new Grid();
+        p.RowDefinitions.Add(new() { Height = new GridLength(18) });
+        p.RowDefinitions.Add(new());
+        p.RowDefinitions.Add(new() { Height = new GridLength(18) });
+        p.RowDefinitions.Add(new() { Height = new GridLength(34) });
+        p.Children.Add(heading);
+        Grid.SetRow(timer, 1); p.Children.Add(timer);
+        Grid.SetRow(desc, 2); p.Children.Add(desc);
+        Grid.SetRow(actions, 3); p.Children.Add(actions);
+        desc.ToolTip = "Локальный таймер. Системный DND настраивается в Windows.";
         void Update()
         {
             var left = m.Data.FocusEnd - DateTimeOffset.Now;
             timer.Text = left is TimeSpan t ? Format(Math.Max(0, t.TotalSeconds)) : "25:00";
-            desc.Text = left != null ? "Сессия фокуса активна" : "Локальный таймер · DND настраивается в Windows";
+            desc.Text = left != null ? "Сессия активна" : "Время для себя";
         }
         Subscribe(p, m.Data, Update);
         return p;
@@ -360,16 +162,29 @@ internal static class WidgetContentFactory
         var status = T("Уведомления", 13, true);
         var list = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         var refresh = Small("Обновить", async () => await m.Data.Notifications.RefreshAsync(false));
-        var p = Ui.Stack(status, list, refresh);
+        var p = new Grid();
+        p.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        p.RowDefinitions.Add(new());
+        p.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        p.Children.Add(status);
+        var scroll = new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Grid.SetRow(scroll, 1); p.Children.Add(scroll);
+        Grid.SetRow(refresh, 2); p.Children.Add(refresh);
+        refresh.HorizontalAlignment = HorizontalAlignment.Left;
         void Update()
         {
             status.Text = m.Data.Notifications.Status;
+            status.ToolTip = status.Text;
             list.Children.Clear();
             foreach (var n in m.Data.Notifications.Entries.Take(3))
             {
-                var body = Ui.Stack(T(n.App, 10), T(n.Title, 12, true), T(n.Body, 11));
-                body.Margin = new Thickness(0, 0, 0, 10);
-                list.Children.Add(body);
+                var source = T(n.App, 10);
+                source.Opacity = .6;
+                var message = T(n.Body, 11);
+                message.TextWrapping = TextWrapping.Wrap;
+                message.MaxHeight = 30;
+                var body = Ui.Stack(source, Ui.Gap(3), T(n.Title, 12, true), Ui.Gap(2), message);
+                list.Children.Add(new Border { Child = body, Padding = new Thickness(12, 9, 12, 9), Margin = new Thickness(0, 0, 0, 7), CornerRadius = new CornerRadius(14), Background = new SolidColorBrush(Color.FromArgb(14, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(16, 255, 255, 255)), BorderThickness = new Thickness(1) });
             }
             refresh.IsEnabled = m.Settings.NotificationsEnabled;
         }
@@ -379,6 +194,9 @@ internal static class WidgetContentFactory
     static FrameworkElement Assistant(WidgetManager m, bool preview)
     {
         var input = Ui.Input("");
+        input.Background = Brushes.Transparent;
+        input.BorderThickness = new Thickness(0);
+        input.SetResourceReference(TextBox.ForegroundProperty, "WidgetInk");
         input.ToolTip = "Введите запрос. Он отправится настроенному провайдеру.";
         input.MaxLength = 4000;
         var answer = T(m.Data.Ai.Answer, 12);
@@ -388,7 +206,17 @@ internal static class WidgetContentFactory
         row.Children.Add(send);
         row.Children.Add(Small("Остановить", m.Data.Ai.Cancel));
         var scroll = new ScrollViewer { Content = answer, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 180 };
-        var p = Ui.Stack(T("Ассистент", 14, true), Ui.Gap(10), input, row, scroll);
+        answer.TextWrapping = TextWrapping.Wrap;
+        var field = new Border { Child = input, CornerRadius = new CornerRadius(14), Background = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255)), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)) };
+        var p = new Grid();
+        p.RowDefinitions.Add(new() { Height = new GridLength(30) });
+        p.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        p.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        p.RowDefinitions.Add(new());
+        p.Children.Add(T("Ассистент", 14, true));
+        Grid.SetRow(field, 1); p.Children.Add(field);
+        Grid.SetRow(row, 2); p.Children.Add(row);
+        Grid.SetRow(scroll, 3); p.Children.Add(scroll);
         void Update()
         {
             answer.Text = m.Data.Ai.Answer;

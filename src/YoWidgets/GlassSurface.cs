@@ -19,7 +19,7 @@ internal sealed class GlassEffect : ShaderEffect
     }
     public void Configure(double w, double h, double strength, double tint, bool light)
     {
-        SetValue(SizeProperty, new System.Windows.Media.Media3D.Point4D(w, h, Math.Min(28, Math.Min(w, h) / 4), 20));
+        SetValue(SizeProperty, new System.Windows.Media.Media3D.Point4D(w, h, Math.Min(32, Math.Min(w, h) / 4), 20));
         SetValue(OpticsProperty, new System.Windows.Media.Media3D.Point4D(strength, tint, light ? 1 : 0, 1));
     }
     public void Pointer(Point p, double w, double h, bool over) => SetValue(LightProperty, new System.Windows.Media.Media3D.Point4D(p.X / Math.Max(1, w), p.Y / Math.Max(1, h), over ? 1 : 0, 0));
@@ -35,13 +35,16 @@ internal sealed class GlassSurface : Grid
         {
             shaderFailed = true;
             foreach (var reference in surfaces.ToArray())
-            if (reference.TryGetTarget(out var surface))
-                surface.UseFallback();
+                if (reference.TryGetTarget(out var surface))
+                    surface.UseFallback();
             surfaces.RemoveAll(reference => !reference.TryGetTarget(out _));
             App.Trace("glass", "Render-thread shader rejected; transparent gradient fallback enabled");
         });
     }
     readonly Rectangle source = new(); readonly Border preblur = new(); readonly GlassEffect? effect; readonly Grid optical = new();
+    readonly BlurEffect blur = new() { RenderingBias = RenderingBias.Performance };
+    double previousWidth, previousHeight, previousStrength = -1, previousOpacity = -1;
+    bool previousLight;
     readonly Border fallback = new() { CornerRadius = new CornerRadius(28), Margin = new Thickness(20), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.FromArgb(45, 255, 255, 255)), Background = new LinearGradientBrush(Color.FromArgb(28, 255, 255, 255), Color.FromArgb(12, 180, 205, 230), 65), Visibility = Visibility.Collapsed };
     public string Mode => usingFallback ? "transparent-gradient-fallback" : "refracted-alpha";
     public GlassSurface()
@@ -79,8 +82,19 @@ internal sealed class GlassSurface : Grid
         if (usingFallback)
             return;
         source.Fill = brush;
-        preblur.Effect = settings.Blur > 0 ? new BlurEffect { Radius = settings.Blur, RenderingBias = RenderingBias.Performance } : null;
-        effect?.Configure(w, h, settings.GlassStrength, settings.Opacity, settings.Light);
+        if (Math.Abs(blur.Radius - settings.Blur) > .01)
+            blur.Radius = settings.Blur;
+        if (preblur.Effect != (settings.Blur > 0 ? blur : null))
+            preblur.Effect = settings.Blur > 0 ? blur : null;
+        if (w != previousWidth || h != previousHeight || previousStrength != settings.GlassStrength || previousOpacity != settings.Opacity || previousLight != settings.Light)
+        {
+            effect?.Configure(w, h, settings.GlassStrength, settings.Opacity, settings.Light);
+            previousWidth = w;
+            previousHeight = h;
+            previousStrength = settings.GlassStrength;
+            previousOpacity = settings.Opacity;
+            previousLight = settings.Light;
+        }
     }
     public void Pointer(Point p, double w, double h, bool over) => effect?.Pointer(p, w, h, over);
 }

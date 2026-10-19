@@ -4,7 +4,11 @@ namespace YoWidgets;
 
 internal sealed class WidgetWindow : Window
 {
-    readonly WidgetManager manager; readonly WidgetState state; readonly GlassSurface glass = new(); readonly Grid surface = new() { Background = null }; readonly bool checker; int expansionVersion; bool closing; bool loaded; Point? dragStart; RectD? dragBounds; public bool Expanded
+    readonly WidgetManager manager; readonly WidgetState state; readonly GlassSurface glass = new(); readonly Grid surface = new() { Background = null }; readonly bool checker; int expansionVersion; bool closing; bool loaded; bool moving; bool animating; ImageBrush? movingBrush; RectD movingArea = new(0, 0, 1, 1); long moveFrames; RectD? paintedBounds;
+    Brush? motionSource;
+    RectD? motionSourceArea;
+    public event Action? ExpansionChanged;
+    public bool Expanded
     {
         get; private set;
     }
@@ -28,18 +32,18 @@ internal sealed class WidgetWindow : Window
         surface.Margin = new Thickness(20);
         surface.Children.Add(glass);
         var content = WidgetContentFactory.Create(m, s, this);
-        content.Margin = new Thickness(s.Kind == "music" ? 12 : 18);
+        content.Margin = new Thickness(18);
         surface.Children.Add(content);
         Content = surface;
         SetDimensions();
         SourceInitialized += (_, _) => { Native.ToolWindow(this); var source = (HwndSource)PresentationSource.FromVisual(this); source.AddHook(Hook); };
-        Loaded += (_, _) => { loaded = true; Position(); RefreshGlass(); Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => TraceVisibility()); };
-        LocationChanged += (_, _) => { if (loaded) RefreshGlass(); };
-        SizeChanged += (_, _) => { if (loaded) RefreshGlass(); };
-        MouseMove += (_, e) => { if (dragStart is Point start && dragBounds is RectD bounds && e.LeftButton == MouseButtonState.Pressed) { var now = PointToScreen(e.GetPosition(this)); PlacePhysical(bounds.X + now.X - start.X, bounds.Y + now.Y - start.Y); } if (!m.Snoozed) glass.Pointer(e.GetPosition(surface), surface.ActualWidth, surface.ActualHeight, true); };
+        Loaded += (_, _) => { loaded = true; Position(); RefreshGlass(); Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => TraceVisibility()); Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, PrewarmMove); };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) { motionSource = null; motionSourceArea = null; } else if (loaded) Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, PrewarmMove); };
+        LocationChanged += (_, _) => { if (moving || animating) RenderMove(null, EventArgs.Empty); else if (loaded) QueueGlassRefresh(); };
+        SizeChanged += (_, _) => { if (animating) RenderMove(null, EventArgs.Empty); else if (loaded && !moving) QueueGlassRefresh(); };
+        MouseMove += (_, e) => { if (!m.Snoozed && !moving) glass.Pointer(e.GetPosition(surface), surface.ActualWidth, surface.ActualHeight, true); };
         MouseLeave += (_, _) => glass.Pointer(new(.5, .5), 1, 1, false);
-        MouseLeftButtonDown += (_, e) => { if (e.OriginalSource is System.Windows.Controls.Primitives.Thumb || IsInteractive(e.OriginalSource as DependencyObject)) return; dragStart = PointToScreen(e.GetPosition(this)); dragBounds = Native.Bounds(this); CaptureMouse(); Focus(); e.Handled = true; };
-        MouseLeftButtonUp += (_, _) => { if (dragStart != null) { dragStart = null; dragBounds = null; ReleaseMouseCapture(); SavePosition(); } };
+        MouseLeftButtonDown += (_, e) => { if (e.OriginalSource is System.Windows.Controls.Primitives.Thumb || IsInteractive(e.OriginalSource as DependencyObject)) return; e.Handled = true; MoveNative(); };
         KeyDown += (_, e) => { var step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1; var b = Native.Bounds(this); var x = b.X; var y = b.Y; switch (e.Key) { case Key.Left: x -= step; break; case Key.Right: x += step; break; case Key.Up: y -= step; break; case Key.Down: y += step; break; case Key.Escape: App.CurrentApp.ShowShell(); return; default: return; } PlacePhysical(x, y); SavePosition(); e.Handled = true; };
         var menu = new ContextMenu();
         void Item(string label, Action a)
@@ -59,13 +63,101 @@ internal sealed class WidgetWindow : Window
         surface.ContextMenu = menu;
         Closing += (_, e) => { if (!closing && !checker) { e.Cancel = true; manager.Disable(state); } };
     }
+    bool refreshQueued;
+    void PrewarmMove()
+    {
+        if (closing || !IsVisible || manager.Snoozed) return;
+        var screen = System.Windows.Forms.Screen.FromHandle(Native.Handle(this)).Bounds;
+        var area = new RectD(screen.X,screen.Y,screen.Width,screen.Height);
+        if (motionSource == null || motionSourceArea != area)
+        {
+            motionSource = manager.Wallpaper.GetBrush(area,checker,moving:true);
+            motionSourceArea = area;
+        }
+    }
+    void QueueGlassRefresh()
+    {
+        if (refreshQueued || moving || animating || closing)
+            return;
+        refreshQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, () => { refreshQueued = false; if (!moving && !animating && !closing) RefreshGlass(); });
+    }
+    void PrepareMotion()
+    {
+        var screen = System.Windows.Forms.Screen.FromHandle(Native.Handle(this)).Bounds;
+        movingArea = new(screen.X, screen.Y, screen.Width, screen.Height);
+        var prepared = motionSourceArea == movingArea && motionSource != null ? motionSource : manager.Wallpaper.GetBrush(movingArea, checker, moving: true);
+        motionSource = prepared;
+        motionSourceArea = movingArea;
+        movingBrush = prepared is ImageBrush image ? image.CloneCurrentValue() : null;
+        paintedBounds = null;
+        if (movingBrush != null)
+        {
+            var view = BackdropViewport.For(Native.Bounds(this), movingArea);
+            movingBrush.Viewbox = new Rect(view.X, view.Y, view.Width, view.Height);
+            glass.Update(movingBrush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
+        }
+    }
+    void MoveNative()
+    {
+        if (moving || manager.Snoozed || Mouse.LeftButton != MouseButtonState.Pressed)
+            return;
+        if (animating) FinishExpansion();
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        PrepareMotion();
+        moveFrames = 0;
+        paintedBounds = null;
+        moving = true;
+        if (movingBrush != null)
+            glass.Update(movingBrush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
+        CompositionTarget.Rendering += RenderMove;
+        var preparedMs = started.ElapsedMilliseconds;
+        var decodesBeforeLoop = manager.Wallpaper.DecodeCount;
+        var cpu = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime;
+        var loop = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException) { /* Mouse may have been released while preparing the first frame. */ }
+        finally
+        {
+            CompositionTarget.Rendering -= RenderMove;
+            moving = false;
+            movingBrush = null;
+            paintedBounds = null;
+            if (!closing)
+            {
+                SavePosition();
+                QueueGlassRefresh();
+            }
+            manager.Wallpaper.ClearCache();
+            var used = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime - cpu;
+            App.Trace("drag", $"native; prepareMs={preparedMs}; loopMs={loop.ElapsedMilliseconds}; frames={moveFrames}; decodesDuringLoop={manager.Wallpaper.DecodeCount-decodesBeforeLoop}; cpuMs={used.TotalMilliseconds:F1}");
+        }
+    }
+    void RenderMove(object? sender, EventArgs e)
+    {
+        if ((!moving && !animating) || movingBrush == null)
+            return;
+        var bounds = Native.Bounds(this);
+        if (bounds == paintedBounds)
+            return;
+        paintedBounds = bounds;
+        var view = BackdropViewport.For(bounds, movingArea);
+        movingBrush.Viewbox = new Rect(view.X, view.Y, view.Width, view.Height);
+        movingBrush.ViewboxUnits = BrushMappingMode.RelativeToBoundingBox;
+        if (animating)
+            glass.Update(movingBrush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
+        moveFrames++;
+    }
     static bool IsInteractive(DependencyObject? p)
     {
         while (p != null)
         {
             if (p is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.RangeBase or TextBox or PasswordBox)
                 return true;
-            p = VisualTreeHelper.GetParent(p);
+            p = p is Visual ? VisualTreeHelper.GetParent(p) : p is FrameworkContentElement content ? content.Parent : LogicalTreeHelper.GetParent(p);
         }
         return false;
     }
@@ -79,9 +171,9 @@ internal sealed class WidgetWindow : Window
         if (kind is "music" or "quick" or "assistant" or "notifications")
         {
             w = kind == "music" && small ? 268 : 358;
-            h = kind == "music" ? 96 : kind == "quick" ? 230 : 260;
+            h = kind == "music" ? 184 : kind == "quick" ? 230 : 260;
             if (large)
-                h = 354;
+                h = kind == "music" ? 410 : 354;
             if (kind == "music")
                 Expanded = large;
         }
@@ -103,7 +195,7 @@ internal sealed class WidgetWindow : Window
     {
         var h = Native.Handle(this);
         Native.SetWindowPos(h, IntPtr.Zero, (int)x, (int)y, 0, 0, 0x15);
-        RefreshGlass();
+        QueueGlassRefresh();
     }
     public void CenterOnCurrentMonitor(int index, int count = 1, double cellWidth = 0, double cellHeight = 0)
     {
@@ -139,52 +231,61 @@ internal sealed class WidgetWindow : Window
     }
     public void RefreshGlass()
     {
-        if (!loaded)
+        if (!loaded || moving || animating || closing)
             return;
         var b = Native.Bounds(this);
         var brush = manager.Wallpaper.GetBrush(b, checker);
         glass.Update(brush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
         Topmost = manager.Settings.Topmost;
-        if (surface.Children.Count > 1)
-            TintContent(surface.Children[1]);
-    }
-    void TintContent(DependencyObject node)
-    {
-        if (node is TextBlock text)
-            text.Foreground = manager.Settings.Light ? new SolidColorBrush(Color.FromRgb(18, 31, 49)) : Brushes.White;
-        if (node is Button button)
-            button.Foreground = manager.Settings.Light ? new SolidColorBrush(Color.FromRgb(18, 31, 49)) : Brushes.White;
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
-            TintContent(VisualTreeHelper.GetChild(node, i));
     }
     public void ToggleExpanded()
     {
         var version = ++expansionVersion;
         Expanded = !Expanded;
-        var target = Expanded ? 394 : 136;
+        ExpansionChanged?.Invoke();
+        var target = (Expanded ? 410 : 184) + 40;
         if (SystemParameters.ClientAreaAnimation && !manager.Snoozed)
         {
+            if (!animating)
+            {
+                PrepareMotion();
+                animating = true;
+                CompositionTarget.Rendering += RenderMove;
+            }
             var anim = new DoubleAnimation(target, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } };
-            anim.Completed += (_, _) => { if (version != expansionVersion) return; BeginAnimation(HeightProperty, null); Height = target; Position(); };
+            anim.Completed += (_, _) => { if (version == expansionVersion) FinishExpansion(); };
             BeginAnimation(HeightProperty, anim);
         }
         else
         {
-            Height = target;
-            Position();
+            FinishExpansion();
         }
+    }
+    void FinishExpansion()
+    {
+        ++expansionVersion;
+        BeginAnimation(HeightProperty, null);
+        Height = (Expanded ? 410 : 184) + 40;
+        animating = false;
+        CompositionTarget.Rendering -= RenderMove;
+        movingBrush = null;
+        paintedBounds = null;
+        Position();
+        QueueGlassRefresh();
     }
     IntPtr Hook(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
     {
         if (msg == 0x02E0)
-            Dispatcher.BeginInvoke(() => { Position(); RefreshGlass(); });
+            Dispatcher.BeginInvoke(() => { if (!moving) { Position(); QueueGlassRefresh(); } });
         if (msg == 0x007E || msg == 0x001A)
-            Dispatcher.BeginInvoke(() => { Position(); RefreshGlass(); });
+            Dispatcher.BeginInvoke(() => { motionSource = null; motionSourceArea = null; Position(); RefreshGlass(); Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, PrewarmMove); });
         return IntPtr.Zero;
     }
     public void CloseOwned()
     {
         closing = true;
+        motionSource = null;
+        CompositionTarget.Rendering -= RenderMove;
         try
         {
             Hide();

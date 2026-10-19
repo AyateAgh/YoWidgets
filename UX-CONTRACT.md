@@ -6,7 +6,7 @@ Locale: ru-RU, OS timezone. Native WPF UI, not a browser application. Canonical 
 |---|---|---|---|---|
 | Form | Ui.Input, PasswordBox, MainWindow settings | This contract | ordinary / secret | native UI state inspection |
 | Select/Listbox | Windows native context menu | DESIGN.md | widget S/M/L | keyboard and menu |
-| Date | WidgetContentFactory.Calendar | This contract | display only | month/day layout |
+| Date | WidgetCards.Calendar | This contract | display only | month/day layout |
 | Scrollbar | Controls.xaml + native ScrollViewer | DESIGN.md | vertical page / widget text | screenshots and keyboard |
 | Toast | MainWindow.Status | This contract | info / error text | UI Automation live region |
 | CRUD | WidgetManager, SettingsStore | cleanup-contract.md | enable / add / disable | tests + restart |
@@ -20,3 +20,5 @@ Async generations and cancellation prevent obsolete work applying after suspensi
 Keyboard: Tab/native controls, native context menus, arrow/Shift+arrow positioning, Escape opens management. File picker popup is intentionally OS-owned. No browser alert/confirm/prompt. The separate removal page describes exactly what the terminal delete button removes before execution. Common system parameter rollback is explicit and conflict-aware.
 
 Native equivalents replace HTML/ARIA-only audit items: accessible WPF names, AutomationProperties.LiveSetting, native control focus and keyboard actions. Unsupported hardware/consent scenarios must be labelled unverified in docs/verification.md.
+
+Media artwork order: valid current-track thumbnail → known website logo (or native application identity icon) → no artwork and no reserved square. Resolution is asynchronous, bounded, cancellable and guarded against stale track results. Unsupported browser websites are not guessed. Lyrics and expand controls have named vector icons; unavailable source capabilities remain disabled. Native drag preserves persisted physical coordinates; mixed-DPI and cross-monitor motion need separate physical testing.
