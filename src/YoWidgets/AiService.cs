@@ -3,10 +3,71 @@ using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
 namespace YoWidgets;
-internal sealed class AiService {
- CancellationTokenSource? request;public string Answer{get;private set;}="Подключите провайдера в настройках";public bool Busy{get;private set;}public event Action? Changed;int generation;
- public static string Protect(string secret)=>Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(secret),Encoding.UTF8.GetBytes("YoWidgets.AI.v1"),DataProtectionScope.CurrentUser));
- static string Unprotect(string secret)=>Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(secret),Encoding.UTF8.GetBytes("YoWidgets.AI.v1"),DataProtectionScope.CurrentUser));
- public async Task SendAsync(string text,AppSettings settings){if(string.IsNullOrWhiteSpace(text)||Busy)return;if(string.IsNullOrEmpty(settings.AiKeyProtected)||string.IsNullOrWhiteSpace(settings.AiModel)){Answer="Сначала укажите провайдера, модель и ключ в настройках";Changed?.Invoke();return;}if(!Uri.TryCreate(settings.AiEndpoint,UriKind.Absolute,out var endpoint)||endpoint.Scheme!="https"){Answer="Адрес провайдера должен начинаться с https://";Changed?.Invoke();return;}Cancel();var v=++generation;request=new CancellationTokenSource(TimeSpan.FromSeconds(45));Busy=true;Answer="Готовим ответ…";Changed?.Invoke();try{using var http=new HttpClient();http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",Unprotect(settings.AiKeyProtected));var body=JsonSerializer.Serialize(new{model=settings.AiModel,messages=new[]{new{role="user",content=text[..Math.Min(text.Length,4000)]}},max_tokens=700});using var response=await http.PostAsync(settings.AiEndpoint.TrimEnd('/')+"/chat/completions",new StringContent(body,Encoding.UTF8,"application/json"),request.Token);if(!response.IsSuccessStatusCode)throw new InvalidOperationException("Провайдер вернул HTTP "+(int)response.StatusCode);using var doc=JsonDocument.Parse(await response.Content.ReadAsStringAsync(request.Token));if(v==generation)Answer=doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()??"Пустой ответ";}catch(OperationCanceledException){if(v==generation)Answer="Запрос остановлен или истекло время ожидания";}catch(Exception e){if(v==generation)Answer=e is InvalidOperationException?e.Message:"Не удалось получить ответ. Проверьте соединение и ключ.";}finally{if(v==generation){Busy=false;Changed?.Invoke();}}}
- public void Cancel(){generation++;request?.Cancel();request?.Dispose();request=null;Busy=false;}
+
+internal sealed class AiService
+{
+    CancellationTokenSource? request; public string Answer { get; private set; } = "Подключите провайдера в настройках"; public bool Busy
+    {
+        get; private set;
+    }
+    public event Action? Changed; int generation;
+    public static string Protect(string secret) => Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes("YoWidgets.AI.v1"), DataProtectionScope.CurrentUser));
+    static string Unprotect(string secret) => Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(secret), Encoding.UTF8.GetBytes("YoWidgets.AI.v1"), DataProtectionScope.CurrentUser));
+    public async Task SendAsync(string text, AppSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(text) || Busy)
+            return;
+        if (string.IsNullOrEmpty(settings.AiKeyProtected) || string.IsNullOrWhiteSpace(settings.AiModel))
+        {
+            Answer = "Сначала укажите провайдера, модель и ключ в настройках";
+            Changed?.Invoke();
+            return;
+        }
+        if (!Uri.TryCreate(settings.AiEndpoint, UriKind.Absolute, out var endpoint) || endpoint.Scheme != "https")
+        {
+            Answer = "Адрес провайдера должен начинаться с https://";
+            Changed?.Invoke();
+            return;
+        }
+        Cancel();
+        var v = ++generation;
+        request = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        Busy = true;
+        Answer = "Готовим ответ…";
+        Changed?.Invoke();
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Unprotect(settings.AiKeyProtected));
+            var body = JsonSerializer.Serialize(new
+            {
+                model = settings.AiModel,
+                messages = new[] { new { role = "user", content = text[..Math.Min(text.Length, 4000)] } },
+                max_tokens = 700
+            });
+            using var response = await http.PostAsync(settings.AiEndpoint.TrimEnd('/') + "/chat/completions", new StringContent(body, Encoding.UTF8, "application/json"), request.Token);
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException("Провайдер вернул HTTP " + (int)response.StatusCode);
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(request.Token));
+            if (v == generation)
+                Answer = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "Пустой ответ";
+        }
+        catch (OperationCanceledException) { if (v == generation) Answer = "Запрос остановлен или истекло время ожидания"; }
+        catch (Exception e) { if (v == generation) Answer = e is InvalidOperationException ? e.Message : "Не удалось получить ответ. Проверьте соединение и ключ."; }
+        finally { if (v == generation) { Busy = false; Changed?.Invoke(); } }
+    }
+    public void Cancel()
+    {
+        var active = Busy;
+        generation++;
+        request?.Cancel();
+        request?.Dispose();
+        request = null;
+        Busy = false;
+        if (active)
+        {
+            Answer = "Запрос остановлен";
+            Changed?.Invoke();
+        }
+    }
 }

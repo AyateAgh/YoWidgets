@@ -1,5 +1,14 @@
 param([string]$TestDestination,[switch]$NoLaunch)
 $ErrorActionPreference='Stop'
+function Assert-SafeAncestors([string]$path) {
+ $cursor=[IO.Path]::GetFullPath($path)
+ while ($cursor) {
+  if (Test-Path -LiteralPath $cursor) { if ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Reparse ancestor rejected: $cursor" } }
+  $parent=[IO.Path]::GetDirectoryName($cursor)
+  if ($parent -eq $cursor) { break }
+  $cursor=$parent
+ }
+}
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $source=Join-Path $projectRoot 'artifacts/release'
 if (-not (Test-Path -LiteralPath (Join-Path $source 'YoWidgets.exe'))) { throw 'Run scripts/build.ps1 first.' }
@@ -11,6 +20,8 @@ if ($TestDestination) {
  if (-not $installRoot.StartsWith($testBoundary,[StringComparison]::OrdinalIgnoreCase)) { throw 'Test installation must be below artifacts/lifecycle.' }
  $dataRoot=Join-Path $installRoot 'data'
 }
+Assert-SafeAncestors $installRoot
+Assert-SafeAncestors $dataRoot
 if (Test-Path -LiteralPath $installRoot) { throw 'Installation folder already exists. Uninstall the previous owned installation first.' }
 if (Test-Path -LiteralPath $dataRoot) { throw 'Data folder already exists; refusing to adopt or overwrite existing data.' }
 if (-not $TestDestination -and (Test-Path -LiteralPath 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/YoWidgets')) { throw 'Uninstall registry key already exists.' }
@@ -37,7 +48,7 @@ if (-not $TestDestination) {
  New-ItemProperty -LiteralPath $key -Name DisplayName -Value YoWidgets -PropertyType String | Out-Null
  New-ItemProperty -LiteralPath $key -Name DisplayVersion -Value '0.1.0' -PropertyType String | Out-Null
  New-ItemProperty -LiteralPath $key -Name InstallLocation -Value $installRoot -PropertyType String | Out-Null
- New-ItemProperty -LiteralPath $key -Name UninstallString -Value ('powershell.exe -NoProfile -File "'+(Join-Path $installRoot 'uninstall.ps1')+'"') -PropertyType String | Out-Null
+ New-ItemProperty -LiteralPath $key -Name UninstallString -Value ('powershell.exe -WindowStyle Hidden -NoProfile -File "'+(Join-Path $installRoot 'uninstall.ps1')+'" -ShowResult') -PropertyType String | Out-Null
 }
 Write-Output "Installed per-user: $installRoot"
 if (-not $NoLaunch) { Start-Process -FilePath (Join-Path $installRoot 'YoWidgets.exe') -WindowStyle Hidden }

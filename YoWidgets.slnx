@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/YoWidgets.Core/YoWidgets.Core.csproj" />
+    <Project Path="src/YoWidgets/YoWidgets.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/YoWidgets.Tests/YoWidgets.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/ShaderCompiler/ShaderCompiler.csproj" />
+  </Folder>
+</Solution>

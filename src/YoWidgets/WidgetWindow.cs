@@ -1,21 +1,206 @@
 using System.Windows.Interop;
 using System.Windows.Media.Animation;
 namespace YoWidgets;
-internal sealed class WidgetWindow : Window {
- readonly WidgetManager manager;readonly WidgetState state;readonly GlassSurface glass=new();readonly Grid surface=new();readonly DesktopHost host=new();readonly bool checker;int expansionVersion;bool closing;bool loaded;Point? dragStart;RectD? dragBounds;public bool Expanded{get;private set;}
- public WidgetWindow(WidgetManager m,WidgetState s,bool test=false){manager=m;state=s;checker=test;Title="YoWidgets · "+s.Kind;WindowStyle=WindowStyle.None;AllowsTransparency=true;Background=Brushes.Transparent;ShowInTaskbar=false;ResizeMode=ResizeMode.NoResize;SizeToContent=SizeToContent.Manual;Topmost=m.Settings.Topmost;UseLayoutRounding=true;SnapsToDevicePixels=true;surface.Margin=new Thickness(20);surface.Children.Add(glass);var content=WidgetContentFactory.Create(m,s,this);content.Margin=new Thickness(s.Kind=="music"?12:18);surface.Children.Add(content);Content=surface;SetDimensions();SourceInitialized+=(_,_)=>{Native.ToolWindow(this);var source=(HwndSource)PresentationSource.FromVisual(this);source.AddHook(Hook);};Loaded+=(_,_)=>{loaded=true;if(m.Settings.DesktopMode&&!m.ForceNormal&&!test)host.TryAttach(this);Position();RefreshGlass();};LocationChanged+=(_,_)=>{if(loaded)RefreshGlass();};SizeChanged+=(_,_)=>{if(loaded)RefreshGlass();};MouseMove+=(_,e)=>{if(dragStart is Point start&&dragBounds is RectD bounds&&e.LeftButton==MouseButtonState.Pressed){var now=PointToScreen(e.GetPosition(this));PlacePhysical(bounds.X+now.X-start.X,bounds.Y+now.Y-start.Y);}if(!m.Snoozed)glass.Pointer(e.GetPosition(surface),surface.ActualWidth,surface.ActualHeight,true);};MouseLeave+=(_,_)=>glass.Pointer(new(.5,.5),1,1,false);
-  MouseLeftButtonDown+=(_,e)=>{if(e.OriginalSource is System.Windows.Controls.Primitives.Thumb||IsInteractive(e.OriginalSource as DependencyObject))return;dragStart=PointToScreen(e.GetPosition(this));dragBounds=Native.Bounds(this);CaptureMouse();Focus();e.Handled=true;};MouseLeftButtonUp+=(_,_)=>{if(dragStart!=null){dragStart=null;dragBounds=null;ReleaseMouseCapture();SavePosition();}};KeyDown+=(_,e)=>{var step=Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)?10:1;var b=Native.Bounds(this);var x=b.X;var y=b.Y;switch(e.Key){case Key.Left:x-=step;break;case Key.Right:x+=step;break;case Key.Up:y-=step;break;case Key.Down:y+=step;break;case Key.Escape:App.CurrentApp.ShowShell();return;default:return;}PlacePhysical(x,y);SavePosition();e.Handled=true;};
-  var menu=new ContextMenu();void Item(string label,Action a){var i=new MenuItem{Header=label};i.Click+=(_,_)=>a();menu.Items.Add(i);}Item("Настроить виджеты",App.CurrentApp.ShowShell);foreach(var size in new[]{"S","M","L"}){var z=size;Item("Размер "+z,()=>{state.Size=z;SetDimensions();manager.Save();});}Item("Вернуть в видимую область",Position);Item("Выключить виджет",()=>{if(checker)CloseOwned();else manager.Disable(state);});surface.ContextMenu=menu;Closing+=(_,e)=>{if(!closing&&!checker){e.Cancel=true;manager.Disable(state);}};
- }
- static bool IsInteractive(DependencyObject? p){while(p!=null){if(p is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.RangeBase or TextBox or PasswordBox)return true;p=VisualTreeHelper.GetParent(p);}return false;}
- void SetDimensions(){var small=state.Size=="S";var large=state.Size=="L";var kind=state.Kind;var w=small?168:358;var h=large?354:168;if(kind is "music" or "quick" or "assistant" or "notifications"){w=kind=="music"&&small?268:358;h=kind=="music"?96:kind=="quick"?230:260;if(large)h=354;if(kind=="music")Expanded=large;}Width=w+40;Height=h+40;}
- void Position(){var screens=System.Windows.Forms.Screen.AllScreens;var screen=screens.FirstOrDefault(x=>x.WorkingArea.Contains((int)state.X,(int)state.Y))??System.Windows.Forms.Screen.PrimaryScreen!;var a=screen.WorkingArea;var dpi=Native.GetDpiForWindow(Native.Handle(this))/96d;if(dpi<=0)dpi=1;var p=Placement.Clamp(state.X,state.Y,Width*dpi,Height*dpi,new(a.X,a.Y,a.Width,a.Height));PlacePhysical(p.X,p.Y);}
- void PlacePhysical(double x,double y){var h=Native.Handle(this);var parent=Native.GetParent(h);if(host.Attached&&Native.GetWindowRect(parent,out var r)){x-=r.Left;y-=r.Top;}Native.SetWindowPos(h,IntPtr.Zero,(int)x,(int)y,0,0,0x15);RefreshGlass();}
- void SavePosition(){var b=Native.Bounds(this);state.X=b.X;state.Y=b.Y;manager.Save();}
- public void UpdateHost(){if(!loaded)return;var b=Native.Bounds(this);if(manager.Settings.Topmost||!manager.Settings.DesktopMode){host.Detach();Topmost=manager.Settings.Topmost;}else if(!manager.ForceNormal&&!checker&&!host.Attached)host.TryAttach(this);PlacePhysical(b.X,b.Y);}
- public void RefreshGlass(){if(!loaded)return;var b=Native.Bounds(this);var brush=manager.Wallpaper.GetBrush(b,checker);glass.Update(brush,Math.Max(1,ActualWidth-40),Math.Max(1,ActualHeight-40),manager.Settings);Topmost=manager.Settings.Topmost;if(surface.Children.Count>1)TintContent(surface.Children[1]);}
- void TintContent(DependencyObject node){if(node is TextBlock text)text.Foreground=manager.Settings.Light?new SolidColorBrush(Color.FromRgb(18,31,49)):Brushes.White;if(node is Button button)button.Foreground=manager.Settings.Light?new SolidColorBrush(Color.FromRgb(18,31,49)):Brushes.White;for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);i++)TintContent(VisualTreeHelper.GetChild(node,i));}
- public void ToggleExpanded(){var version=++expansionVersion;Expanded=!Expanded;var target=Expanded?394:136;if(SystemParameters.ClientAreaAnimation&&!manager.Snoozed){var anim=new DoubleAnimation(target,TimeSpan.FromMilliseconds(220)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseInOut}};anim.Completed+=(_,_)=>{if(version!=expansionVersion)return;BeginAnimation(HeightProperty,null);Height=target;Position();};BeginAnimation(HeightProperty,anim);}else{Height=target;Position();}}
- IntPtr Hook(IntPtr h,int msg,IntPtr w,IntPtr l,ref bool handled){if(msg==0x02E0)Dispatcher.BeginInvoke(()=>{Position();RefreshGlass();});if(msg==0x007E||msg==0x001A)Dispatcher.BeginInvoke(()=>{Position();RefreshGlass();});return IntPtr.Zero;}
- public void CloseOwned(){closing=true;Hide();host.Detach();Close();}
+
+internal sealed class WidgetWindow : Window
+{
+    readonly WidgetManager manager; readonly WidgetState state; readonly GlassSurface glass = new(); readonly Grid surface = new(); readonly DesktopHost host = new(); readonly bool checker; bool wasAttached; bool hostLost; public bool HostLost => hostLost || wasAttached && !host.Attached; int expansionVersion; bool closing; bool loaded; Point? dragStart; RectD? dragBounds; public bool Expanded
+    {
+        get; private set;
+    }
+    public WidgetWindow(WidgetManager m, WidgetState s, bool test = false)
+    {
+        manager = m;
+        state = s;
+        checker = test;
+        Title = "YoWidgets · " + s.Kind;
+        WindowStyle = WindowStyle.None;
+        AllowsTransparency = true;
+        Background = Brushes.Transparent;
+        ShowInTaskbar = false;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.Manual;
+        Topmost = m.Settings.Topmost;
+        UseLayoutRounding = true;
+        SnapsToDevicePixels = true;
+        surface.Margin = new Thickness(20);
+        surface.Children.Add(glass);
+        var content = WidgetContentFactory.Create(m, s, this);
+        content.Margin = new Thickness(s.Kind == "music" ? 12 : 18);
+        surface.Children.Add(content);
+        Content = surface;
+        SetDimensions();
+        SourceInitialized += (_, _) => { Native.ToolWindow(this); var source = (HwndSource)PresentationSource.FromVisual(this); source.AddHook(Hook); };
+        Loaded += (_, _) => { loaded = true; if (m.Settings.DesktopMode && !m.ForceNormal && !test) { wasAttached = host.TryAttach(this); if (!wasAttached) { manager.DesktopStatus = host.Status + ". Переподключите виджеты или выключите настольный режим."; Dispatcher.BeginInvoke(() => { Hide(); App.CurrentApp.Shell?.Status(manager.DesktopStatus); }); } } Position(); RefreshGlass(); };
+        LocationChanged += (_, _) => { if (loaded) RefreshGlass(); };
+        SizeChanged += (_, _) => { if (loaded) RefreshGlass(); };
+        MouseMove += (_, e) => { if (dragStart is Point start && dragBounds is RectD bounds && e.LeftButton == MouseButtonState.Pressed) { var now = PointToScreen(e.GetPosition(this)); PlacePhysical(bounds.X + now.X - start.X, bounds.Y + now.Y - start.Y); } if (!m.Snoozed) glass.Pointer(e.GetPosition(surface), surface.ActualWidth, surface.ActualHeight, true); };
+        MouseLeave += (_, _) => glass.Pointer(new(.5, .5), 1, 1, false);
+        MouseLeftButtonDown += (_, e) => { if (e.OriginalSource is System.Windows.Controls.Primitives.Thumb || IsInteractive(e.OriginalSource as DependencyObject)) return; dragStart = PointToScreen(e.GetPosition(this)); dragBounds = Native.Bounds(this); CaptureMouse(); Focus(); e.Handled = true; };
+        MouseLeftButtonUp += (_, _) => { if (dragStart != null) { dragStart = null; dragBounds = null; ReleaseMouseCapture(); SavePosition(); } };
+        KeyDown += (_, e) => { var step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1; var b = Native.Bounds(this); var x = b.X; var y = b.Y; switch (e.Key) { case Key.Left: x -= step; break; case Key.Right: x += step; break; case Key.Up: y -= step; break; case Key.Down: y += step; break; case Key.Escape: App.CurrentApp.ShowShell(); return; default: return; } PlacePhysical(x, y); SavePosition(); e.Handled = true; };
+        var menu = new ContextMenu();
+        void Item(string label, Action a)
+        {
+            var i = new MenuItem { Header = label };
+            i.Click += (_, _) => a();
+            menu.Items.Add(i);
+        }
+        Item("Настроить виджеты", App.CurrentApp.ShowShell);
+        foreach (var size in new[] { "S", "M", "L" })
+        {
+            var z = size;
+            Item("Размер " + z, () => { state.Size = z; SetDimensions(); manager.Save(); });
+        }
+        Item("Вернуть в видимую область", Position);
+        Item("Выключить виджет", () => { if (checker) CloseOwned(); else manager.Disable(state); });
+        surface.ContextMenu = menu;
+        Closing += (_, e) => { if (!closing && !checker) { e.Cancel = true; manager.Disable(state); } };
+    }
+    static bool IsInteractive(DependencyObject? p)
+    {
+        while (p != null)
+        {
+            if (p is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.RangeBase or TextBox or PasswordBox)
+                return true;
+            p = VisualTreeHelper.GetParent(p);
+        }
+        return false;
+    }
+    void SetDimensions()
+    {
+        var small = state.Size == "S";
+        var large = state.Size == "L";
+        var kind = state.Kind;
+        var w = small ? 168 : 358;
+        var h = large ? 354 : 168;
+        if (kind is "music" or "quick" or "assistant" or "notifications")
+        {
+            w = kind == "music" && small ? 268 : 358;
+            h = kind == "music" ? 96 : kind == "quick" ? 230 : 260;
+            if (large)
+                h = 354;
+            if (kind == "music")
+                Expanded = large;
+        }
+        Width = w + 40;
+        Height = h + 40;
+    }
+    void Position()
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        var screen = screens.FirstOrDefault(x => x.WorkingArea.Contains((int)state.X, (int)state.Y)) ?? System.Windows.Forms.Screen.PrimaryScreen!;
+        var a = screen.WorkingArea;
+        var dpi = Native.GetDpiForWindow(Native.Handle(this)) / 96d;
+        if (dpi <= 0)
+            dpi = 1;
+        var p = Placement.Clamp(state.X, state.Y, Width * dpi, Height * dpi, new(a.X, a.Y, a.Width, a.Height));
+        PlacePhysical(p.X, p.Y);
+    }
+    void PlacePhysical(double x, double y)
+    {
+        var h = Native.Handle(this);
+        var parent = Native.GetParent(h);
+        if (host.Attached && Native.GetWindowRect(parent, out var r))
+        {
+            x -= r.Left;
+            y -= r.Top;
+        }
+        Native.SetWindowPos(h, IntPtr.Zero, (int)x, (int)y, 0, 0, 0x15);
+        RefreshGlass();
+    }
+    void SavePosition()
+    {
+        var b = Native.Bounds(this);
+        state.X = b.X;
+        state.Y = b.Y;
+        manager.Save();
+    }
+    public void UpdateHost()
+    {
+        if (!loaded)
+            return;
+        var b = Native.Bounds(this);
+        if (manager.Settings.Topmost || !manager.Settings.DesktopMode)
+        {
+            host.Detach();
+            wasAttached = false;
+            hostLost = false;
+            Topmost = manager.Settings.Topmost;
+        }
+        else if (!manager.ForceNormal && !checker && !host.Attached)
+        {
+            wasAttached = host.TryAttach(this);
+            if (!wasAttached)
+            {
+                Hide();
+                manager.DesktopStatus = host.Status;
+                return;
+            }
+        }
+        if (!manager.Snoozed)
+            Show();
+        PlacePhysical(b.X, b.Y);
+    }
+    public void RefreshGlass()
+    {
+        if (!loaded)
+            return;
+        var b = Native.Bounds(this);
+        var brush = manager.Wallpaper.GetBrush(b, checker);
+        glass.Update(brush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
+        Topmost = manager.Settings.Topmost;
+        if (surface.Children.Count > 1)
+            TintContent(surface.Children[1]);
+    }
+    void TintContent(DependencyObject node)
+    {
+        if (node is TextBlock text)
+            text.Foreground = manager.Settings.Light ? new SolidColorBrush(Color.FromRgb(18, 31, 49)) : Brushes.White;
+        if (node is Button button)
+            button.Foreground = manager.Settings.Light ? new SolidColorBrush(Color.FromRgb(18, 31, 49)) : Brushes.White;
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+            TintContent(VisualTreeHelper.GetChild(node, i));
+    }
+    public void ToggleExpanded()
+    {
+        var version = ++expansionVersion;
+        Expanded = !Expanded;
+        var target = Expanded ? 394 : 136;
+        if (SystemParameters.ClientAreaAnimation && !manager.Snoozed)
+        {
+            var anim = new DoubleAnimation(target, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } };
+            anim.Completed += (_, _) => { if (version != expansionVersion) return; BeginAnimation(HeightProperty, null); Height = target; Position(); };
+            BeginAnimation(HeightProperty, anim);
+        }
+        else
+        {
+            Height = target;
+            Position();
+        }
+    }
+    IntPtr Hook(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
+    {
+        if (msg == 0x0002 && wasAttached && !closing)
+        {
+            hostLost = true;
+            closing = true;
+        }
+        if (msg == 0x02E0)
+            Dispatcher.BeginInvoke(() => { Position(); RefreshGlass(); });
+        if (msg == 0x007E || msg == 0x001A)
+            Dispatcher.BeginInvoke(() => { Position(); RefreshGlass(); });
+        return IntPtr.Zero;
+    }
+    public void CloseOwned()
+    {
+        closing = true;
+        try
+        {
+            Hide();
+            host.Detach();
+            Close();
+        }
+        catch (InvalidOperationException) { host.Detach(); }
+    }
 }

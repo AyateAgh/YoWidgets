@@ -2,20 +2,26 @@ using YoWidgets.Core;
 
 var failures = 0;
 void Test(string name, Action run) { try { run(); Console.WriteLine("PASS " + name); } catch (Exception e) { failures++; Console.WriteLine("FAIL " + name + ": " + e.Message); } }
-void Eq<T>(T expected, T actual) { if(expected is double a&&actual is double b&&Math.Abs(a-b)<.000001)return; if (!EqualityComparer<T>.Default.Equals(expected,actual)) throw new Exception($"Expected {expected}, got {actual}"); }
-Test("offscreen position returns to negative-coordinate display", () => { var p=Placement.Clamp(5000,900,300,200,new(-1920,0,1920,1080)); Eq(-300d,p.X); Eq(880d,p.Y); });
-Test("oversized widget anchors at work area origin", () => { var p=Placement.Clamp(-400,20,2500,1400,new(100,100,1920,1080)); Eq(100d,p.X); Eq(100d,p.Y); });
-Test("cleanup rejects sibling with same prefix",()=>Eq(false,OwnedPaths.IsInside(@"C:\Users\A\YoWidgets",@"C:\Users\A\YoWidgets-old\photo.jpg")));
-Test("cleanup rejects root itself",()=>Eq(false,OwnedPaths.IsInside(@"C:\Users\A\YoWidgets",@"C:\Users\A\YoWidgets")));
-Test("cleanup accepts child",()=>Eq(true,OwnedPaths.IsInside(@"C:\Users\A\YoWidgets",@"C:\Users\A\YoWidgets\cache\art.png")));
-Test("lyrics parses repeated timestamps and sorts",()=> { var l=Lyrics.Parse("[00:09.50][00:19.50]Again\n[00:01.20]First\n[ar:Example]");Eq(3,l.Count);Eq(1.2,l[0].Seconds);Eq("Again",l[2].Text); });
-Test("generation gate rejects response after suspension",()=>{var g=new WorkGate();var v=g.Version;g.Suspend();Eq(false,g.CanApply(v));g.Resume();Eq(false,g.CanApply(v));Eq(true,g.CanApply(g.Version));});
-Test("invalid numeric settings are normalized",()=>{var s=new AppSettings{GlassStrength=double.NaN,Opacity=9};s.Normalize();Eq(1d,s.GlassStrength);Eq(.85,s.Opacity);});
-Test("corrupt settings recover without loss of backup",()=>{var d=Path.Combine(Path.GetTempPath(),"YoWidgetsTest-"+Guid.NewGuid());Directory.CreateDirectory(d);try{var store=new SettingsStore(Path.Combine(d,"settings.json"));store.Save(new AppSettings{City="Lviv"});File.WriteAllText(store.Path,"broken");Eq("Lviv",store.Load().City);Eq(true,File.Exists(store.Path+".corrupt"));}finally{Directory.Delete(d,true);}});
-Test("fit wallpaper has letterbox offset",()=>{var r=WallpaperLayout.Calculate(1920,1080,new(0,0,1000,1000),"Fit");Eq(1000d,r.Width);Eq(562.5,r.Height);Eq(218.75,r.Y);});
-Test("inactive or paused widgets request no fast timer",()=>{Eq(60,ActivityPolicy.Seconds(false,false,false,false));Eq(1,ActivityPolicy.Seconds(true,false,false,false));Eq(0,ActivityPolicy.Seconds(true,true,true,true));});
-Test("duplicate widget ids cannot lose a window during cleanup",()=>{var s=new AppSettings{Widgets=[new(){Id="same",Kind="clock"},new(){Id="same",Kind="music"}]};s.Normalize();Eq(2,s.Widgets.Select(x=>x.Id).Distinct().Count());});
-Test("rollback preserves external changes",()=>Eq(false,RollbackPolicy.CanRestore("speaker","speaker",70,45)));
-Test("rollback refuses a replacement device",()=>Eq(false,RollbackPolicy.CanRestore("old","new",45,45)));
-Test("rollback tolerates device rounding",()=>Eq(true,RollbackPolicy.CanRestore("speaker","speaker",44.8,45)));
-Console.WriteLine($"RESULT: {15-failures}/15 passed");return failures==0?0:1;
+void Eq<T>(T expected, T actual) { if (expected is double a && actual is double b && Math.Abs(a - b) < .000001) return; if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected {expected}, got {actual}"); }
+Test("offscreen position returns to negative-coordinate display", () => { var p = Placement.Clamp(5000, 900, 300, 200, new(-1920, 0, 1920, 1080)); Eq(-300d, p.X); Eq(880d, p.Y); });
+Test("oversized widget anchors at work area origin", () => { var p = Placement.Clamp(-400, 20, 2500, 1400, new(100, 100, 1920, 1080)); Eq(100d, p.X); Eq(100d, p.Y); });
+Test("cleanup rejects sibling with same prefix", () => Eq(false, OwnedPaths.IsInside(@"C:\Users\A\YoWidgets", @"C:\Users\A\YoWidgets-old\photo.jpg")));
+Test("cleanup rejects root itself", () => Eq(false, OwnedPaths.IsInside(@"C:\Users\A\YoWidgets", @"C:\Users\A\YoWidgets")));
+Test("cleanup accepts child", () => Eq(true, OwnedPaths.IsInside(@"C:\Users\A\YoWidgets", @"C:\Users\A\YoWidgets\cache\art.png")));
+Test("lyrics parses repeated timestamps and sorts", () => { var l = Lyrics.Parse("[00:09.50][00:19.50]Again\n[00:01.20]First\n[ar:Example]"); Eq(3, l.Count); Eq(1.2, l[0].Seconds); Eq("Again", l[2].Text); });
+Test("generation gate rejects response after suspension", () => { var g = new WorkGate(); var v = g.Version; g.Suspend(); Eq(false, g.CanApply(v)); g.Resume(); Eq(false, g.CanApply(v)); Eq(true, g.CanApply(g.Version)); });
+Test("invalid numeric settings are normalized", () => { var s = new AppSettings { GlassStrength = double.NaN, Opacity = 9 }; s.Normalize(); Eq(1d, s.GlassStrength); Eq(.85, s.Opacity); });
+Test("corrupt settings recover without loss of backup", () => { var d = Path.Combine(Path.GetTempPath(), "YoWidgetsTest-" + Guid.NewGuid()); Directory.CreateDirectory(d); try { var store = new SettingsStore(Path.Combine(d, "settings.json")); store.Save(new AppSettings { City = "Lviv" }); File.WriteAllText(store.Path, "broken"); Eq("Lviv", store.Load().City); Eq(true, File.Exists(store.Path + ".corrupt")); } finally { Directory.Delete(d, true); } });
+Test("fit wallpaper has letterbox offset", () => { var r = WallpaperLayout.Calculate(1920, 1080, new(0, 0, 1000, 1000), "Fit"); Eq(1000d, r.Width); Eq(562.5, r.Height); Eq(218.75, r.Y); });
+Test("inactive or paused widgets request no fast timer", () => { Eq(60, ActivityPolicy.Seconds(false, false, false, false)); Eq(1, ActivityPolicy.Seconds(true, false, false, false)); Eq(0, ActivityPolicy.Seconds(true, true, true, true)); });
+Test("duplicate widget ids cannot lose a window during cleanup", () => { var s = new AppSettings { Widgets = [new() { Id = "same", Kind = "clock" }, new() { Id = "same", Kind = "music" }] }; s.Normalize(); Eq(2, s.Widgets.Select(x => x.Id).Distinct().Count()); });
+Test("rollback preserves external changes", () => Eq(false, RollbackPolicy.CanRestore("speaker", "speaker", 70, 45)));
+Test("rollback refuses a replacement device", () => Eq(false, RollbackPolicy.CanRestore("old", "new", 45, 45)));
+Test("rollback tolerates device rounding", () => Eq(true, RollbackPolicy.CanRestore("speaker", "speaker", 44.8, 45)));
+Test("disable all clears private integration opt-ins", () => { var s = new AppSettings { NotificationsEnabled = true, LyricsEnabled = true }; s.DisableIntegrations(); Eq(false, s.NotificationsEnabled); Eq(false, s.LyricsEnabled); });
+Test("fallback weather parses numeric strings and forecast", () => { var r = WeatherFallback.Parse("""{"current_condition":[{"temp_C":"12","weatherDesc":[{"value":"Cloudy"}],"lang_ru":[{"value":"Облачно"}]}],"weather":[{"date":"2026-10-19","maxtempC":"14","mintempC":"8","hourly":[{"time":"0","tempC":"9"},{"time":"300","tempC":"10"}]}]}"""); Eq(12d, r.Temperature); Eq(8d, r.Low); Eq("Облачно", r.Condition); Eq("03:00", r.Hours[1].Time); });
+Test("failed retry preserves confirmed rollback baseline", () => { var a = ChangeJournal.Advance(null, "brightness", "panel", 30, 40, "prepared"); a = ChangeJournal.Advance(a, "brightness", "panel", 30, 40, "applied"); a = ChangeJournal.Advance(a, "brightness", "panel", 40, 50, "prepared"); Eq(40d, a.Last); Eq("applied", a.Stage); a = ChangeJournal.Advance(a, "brightness", "panel", 40, 60, "prepared"); a = ChangeJournal.Advance(a, "brightness", "panel", 40, 60, "applied"); Eq(30d, a.Original); Eq(60d, a.Last); Eq<double?>(null, a.Pending); });
+Test("unconfirmed first attempt cannot claim a confirmed rollback", () => { var a = ChangeJournal.Advance(null, "volume", "speaker", 30, 40, "prepared"); Eq("prepared", a.Stage); a = ChangeJournal.Advance(a, "volume", "speaker", 35, 50, "prepared"); a = ChangeJournal.Advance(a, "volume", "speaker", 35, 50, "applied"); Eq(35d, a.Original); });
+Test("fallback hourly forecast skips past city-local hours", () => { var r = WeatherFallback.Parse("""{"current_condition":[{"temp_C":"12","localObsDateTime":"2026-10-19 06:30 PM","weatherDesc":[{"value":"Cloudy"}]}],"weather":[{"date":"2026-10-19","maxtempC":"14","mintempC":"8","hourly":[{"time":"0","tempC":"9"},{"time":"1800","tempC":"10"},{"time":"2100","tempC":"11"}]},{"date":"2026-10-20","maxtempC":"15","mintempC":"8","hourly":[{"time":"0","tempC":"8"}]}]}"""); Eq("21:00", r.Hours[0].Time); Eq("00:00", r.Hours[1].Time); });
+Console.WriteLine($"RESULT: {20 - failures}/20 passed");
+return failures == 0 ? 0 : 1;

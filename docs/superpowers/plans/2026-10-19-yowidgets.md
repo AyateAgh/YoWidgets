@@ -7,6 +7,8 @@
 **Tech Stack:** Local .NET 10 SDK, WPF, Win32/COM/WinRT, HLSL ps_3_0, dependency-light C# tests.
 **Spec:** ../../design-proposal.md; ../../cleanup-contract.md; ../../technical-review.md.
 
+**Execution status:** Working 0.1 delivered. Implementation/evidence are recorded in ../../progress.md and ../../verification.md. Checklists below are the original broad validation plan; unexercised hardware/identity/stress scenarios are intentionally not marked passed.
+
 ## Global Constraints
 
 - Windows 11; PerMonitorV2; Russian UI; no drivers, injection, shell replacement, undocumented PinWindow or hidden system configuration.

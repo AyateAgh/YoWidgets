@@ -16,4 +16,10 @@ $output=Join-Path $projectRoot 'artifacts/release'
 & $sdk publish (Join-Path $projectRoot 'src/YoWidgets') -c Release -r win-x64 --self-contained true -o $output --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall.ps1') -Destination $output -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md'),(Join-Path $projectRoot 'THIRD-PARTY-NOTICES.md') -Destination $output -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/verification.md') -Destination (Join-Path $output 'VERIFICATION.md') -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/cleanup-contract.md') -Destination (Join-Path $output 'CLEANUP-CONTRACT.md') -Force
+$readmePath=Join-Path $output 'README.md'
+$readme=(Get-Content -LiteralPath $readmePath -Raw).Replace('docs/verification.md','VERIFICATION.md').Replace('docs/cleanup-contract.md','CLEANUP-CONTRACT.md')
+Set-Content -LiteralPath $readmePath -Value $readme -Encoding UTF8
 Write-Output "Runnable build: $output/YoWidgets.exe"

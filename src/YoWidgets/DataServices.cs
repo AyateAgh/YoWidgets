@@ -1,18 +1,171 @@
 using System.Text.Json;
 namespace YoWidgets;
-internal sealed class DataServices : IDisposable {
- public MediaService Media{get;}=new();public WeatherService Weather{get;}=new();public NotificationService Notifications{get;}=new();public AiService Ai{get;}=new();public SystemControls Controls{get;}=new();public string LyricsText{get;private set;}="Включите тексты песен в настройках";public List<LyricLine> LyricLines{get;private set;}=[];public DateTimeOffset? FocusEnd{get;private set;}
- public event Action? Changed;readonly WidgetManager manager;readonly DispatcherTimer timer;CancellationTokenSource work=new();DateTimeOffset lastWeather=DateTimeOffset.MinValue;string lyricsKey="";bool suspended;bool disposed;readonly WorkGate gate=new();
- public DataServices(WidgetManager m){manager=m;timer=new DispatcherTimer{Interval=TimeSpan.FromMinutes(1)};timer.Tick+=Tick;Media.Changed+=OnMedia;Weather.Changed+=Notify;Notifications.Changed+=Notify;Ai.Changed+=Notify;timer.Start();m.Changed+=UpdateActivity;}
- void Notify(){if(disposed||suspended)return;System.Windows.Application.Current.Dispatcher.BeginInvoke(()=>Changed?.Invoke());}
- public void UpdateActivity(){if(suspended||disposed)return;var kinds=manager.Settings.Widgets.Where(w=>w.Enabled).Select(w=>w.Kind).ToArray();if(kinds.Contains("music")&&!Media.Running)_ = Media.StartAsync();if(!kinds.Contains("music"))Media.Suspend();timer.Interval=TimeSpan.FromSeconds(ActivityPolicy.Seconds(manager.Settings.Seconds&&kinds.Contains("clock"),Media.Playing&&kinds.Contains("music"),FocusEnd!=null,false));if(kinds.Contains("weather")&&DateTimeOffset.Now-lastWeather>TimeSpan.FromMinutes(20)){lastWeather=DateTimeOffset.Now;_ = Weather.RefreshAsync(manager.Settings.City,work.Token);}Notify();}
- void Tick(object? sender,EventArgs e){if(suspended)return;UpdateActivity();Media.Tick();if(FocusEnd!=null&&DateTimeOffset.Now>=FocusEnd){FocusEnd=null;App.CurrentApp.Shell?.Status("Фокус завершён. Можно сделать перерыв.");}if(manager.Settings.Widgets.Any(x=>x.Enabled&&x.Kind=="weather")&&DateTimeOffset.Now-lastWeather>TimeSpan.FromMinutes(20)){lastWeather=DateTimeOffset.Now;_ = Weather.RefreshAsync(manager.Settings.City,work.Token);}Notify();}
- void OnMedia(){timer.Interval=TimeSpan.FromSeconds(ActivityPolicy.Seconds(manager.Settings.Seconds,Media.Playing,FocusEnd!=null,suspended)==0?60:ActivityPolicy.Seconds(manager.Settings.Seconds,Media.Playing,FocusEnd!=null,false));Notify();if(manager.Settings.LyricsEnabled&&manager.Settings.Widgets.Any(x=>x.Enabled&&x.Kind=="music"))_ = LoadLyricsAsync();}
- public void StartFocus(int minutes){FocusEnd=DateTimeOffset.Now.AddMinutes(minutes);UpdateActivity();}
- public void StopFocus(){FocusEnd=null;UpdateActivity();}
- public async Task RefreshWeatherAsync(){lastWeather=DateTimeOffset.Now;await Weather.RefreshAsync(manager.Settings.City,work.Token);}
- async Task LoadLyricsAsync(){var media=Media;var key=media.Title+"|"+media.Artist;if(string.IsNullOrWhiteSpace(media.Title)||key==lyricsKey||suspended)return;var stamp=gate.Version;lyricsKey=key;LyricsText="Загружаем текст…";LyricLines=[];Notify();try{using var client=new HttpClient{Timeout=TimeSpan.FromSeconds(12)};client.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.1");var url="https://lrclib.net/api/get?track_name="+Uri.EscapeDataString(media.Title)+"&artist_name="+Uri.EscapeDataString(media.Artist)+"&duration="+(int)media.Duration;using var res=await client.GetAsync(url,work.Token);if(!res.IsSuccessStatusCode){LyricsText="Для этого трека текст не найден";}else{using var doc=JsonDocument.Parse(await res.Content.ReadAsStringAsync(work.Token));if(!gate.CanApply(stamp)||key!=lyricsKey)return;var o=doc.RootElement;var synced=o.TryGetProperty("syncedLyrics",out var sl)?sl.GetString():null;var plain=o.TryGetProperty("plainLyrics",out var pl)?pl.GetString():null;LyricLines=Lyrics.Parse(synced??"");LyricsText=plain??(LyricLines.Count>0?string.Join("\n",LyricLines.Select(l=>l.Text)):"Текст недоступен");}}catch(OperationCanceledException){return;}catch(Exception e){LyricsText="Не удалось получить текст. Повторите позже.";App.Log("lyrics",e);}if(!suspended)Notify();}
- public void Suspend(){if(suspended)return;suspended=true;gate.Suspend();timer.Stop();work.Cancel();Media.Suspend();Notifications.Suspend();Ai.Cancel();lyricsKey="";}
- public void Resume(){if(!suspended)return;work.Dispose();work=new();suspended=false;gate.Resume();lastWeather=DateTimeOffset.MinValue;timer.Start();UpdateActivity();if(manager.Settings.NotificationsEnabled)_ = Notifications.RefreshAsync(false);Notify();}
- public void Dispose(){if(disposed)return;Suspend();disposed=true;timer.Tick-=Tick;manager.Changed-=UpdateActivity;Media.Changed-=OnMedia;Weather.Changed-=Notify;Notifications.Changed-=Notify;Ai.Changed-=Notify;Media.Dispose();Controls.Dispose();work.Dispose();}
+
+internal sealed class DataServices : IDisposable
+{
+    public MediaService Media { get; } = new(); public WeatherService Weather { get; } = new(); public NotificationService Notifications { get; } = new(); public AiService Ai { get; } = new(); public SystemControls Controls { get; } = new(); public string LyricsText { get; private set; } = "Включите тексты песен в настройках"; public List<LyricLine> LyricLines { get; private set; } = []; public DateTimeOffset? FocusEnd
+    {
+        get; private set;
+    }
+    public event Action? Changed; readonly WidgetManager manager; readonly DispatcherTimer timer; CancellationTokenSource work = new(); DateTimeOffset lastWeather = DateTimeOffset.MinValue; string lyricsKey = ""; bool suspended; bool disposed; readonly WorkGate gate = new();
+    public DataServices(WidgetManager m)
+    {
+        manager = m;
+        timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        timer.Tick += Tick;
+        Media.Changed += OnMedia;
+        Weather.Changed += Notify;
+        Notifications.Changed += Notify;
+        Ai.Changed += Notify;
+        timer.Start();
+        m.Changed += UpdateActivity;
+    }
+    void Notify()
+    {
+        if (disposed || suspended)
+            return;
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(() => Changed?.Invoke());
+    }
+    public void UpdateActivity()
+    {
+        if (suspended || disposed)
+            return;
+        var kinds = manager.Settings.Widgets.Where(w => w.Enabled).Select(w => w.Kind).ToArray();
+        if (kinds.Contains("music") && !Media.Running)
+            _ = Media.StartAsync();
+        if (!kinds.Contains("music"))
+            Media.Suspend();
+        timer.Interval = TimeSpan.FromSeconds(ActivityPolicy.Seconds(manager.Settings.Seconds && kinds.Contains("clock"), Media.Playing && kinds.Contains("music"), FocusEnd != null, false));
+        if (kinds.Contains("weather") && DateTimeOffset.Now - lastWeather > TimeSpan.FromMinutes(20))
+        {
+            lastWeather = DateTimeOffset.Now;
+            _ = Weather.RefreshAsync(manager.Settings.City, work.Token);
+        }
+        Notify();
+    }
+    void Tick(object? sender, EventArgs e)
+    {
+        if (suspended)
+            return;
+        UpdateActivity();
+        Media.Tick();
+        if (FocusEnd != null && DateTimeOffset.Now >= FocusEnd)
+        {
+            FocusEnd = null;
+            App.CurrentApp.Shell?.Status("Фокус завершён. Можно сделать перерыв.");
+        }
+        if (manager.Settings.Widgets.Any(x => x.Enabled && x.Kind == "weather") && DateTimeOffset.Now - lastWeather > TimeSpan.FromMinutes(20))
+        {
+            lastWeather = DateTimeOffset.Now;
+            _ = Weather.RefreshAsync(manager.Settings.City, work.Token);
+        }
+        Notify();
+    }
+    void OnMedia()
+    {
+        timer.Interval = TimeSpan.FromSeconds(ActivityPolicy.Seconds(manager.Settings.Seconds, Media.Playing, FocusEnd != null, suspended) == 0 ? 60 : ActivityPolicy.Seconds(manager.Settings.Seconds, Media.Playing, FocusEnd != null, false));
+        Notify();
+        if (manager.Settings.LyricsEnabled && manager.Settings.Widgets.Any(x => x.Enabled && x.Kind == "music"))
+            _ = LoadLyricsAsync();
+    }
+    public void StartFocus(int minutes)
+    {
+        FocusEnd = DateTimeOffset.Now.AddMinutes(minutes);
+        UpdateActivity();
+    }
+    public void StopFocus()
+    {
+        FocusEnd = null;
+        UpdateActivity();
+    }
+    public async Task RefreshWeatherAsync()
+    {
+        lastWeather = DateTimeOffset.Now;
+        await Weather.RefreshAsync(manager.Settings.City, work.Token);
+    }
+    async Task LoadLyricsAsync()
+    {
+        var media = Media;
+        var key = media.Title + "|" + media.Artist;
+        if (string.IsNullOrWhiteSpace(media.Title) || key == lyricsKey || suspended)
+            return;
+        var stamp = gate.Version;
+        lyricsKey = key;
+        LyricsText = "Загружаем текст…";
+        LyricLines = [];
+        Notify();
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.1");
+            var url = "https://lrclib.net/api/get?track_name=" + Uri.EscapeDataString(media.Title) + "&artist_name=" + Uri.EscapeDataString(media.Artist) + "&duration=" + (int)media.Duration;
+            using var res = await client.GetAsync(url, work.Token);
+            if (!res.IsSuccessStatusCode)
+            {
+                LyricsText = "Для этого трека текст не найден";
+            }
+            else
+            {
+                using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(work.Token));
+                if (!gate.CanApply(stamp) || key != lyricsKey)
+                    return;
+                var o = doc.RootElement;
+                var synced = o.TryGetProperty("syncedLyrics", out var sl) ? sl.GetString() : null;
+                var plain = o.TryGetProperty("plainLyrics", out var pl) ? pl.GetString() : null;
+                LyricLines = Lyrics.Parse(synced ?? "");
+                LyricsText = plain ?? (LyricLines.Count > 0 ? string.Join("\n", LyricLines.Select(l => l.Text)) : "Текст недоступен");
+            }
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception e) { LyricsText = "Не удалось получить текст. Повторите позже."; App.Log("lyrics", e); }
+        if (!suspended)
+            Notify();
+    }
+    public void Suspend()
+    {
+        if (suspended)
+            return;
+        suspended = true;
+        gate.Suspend();
+        timer.Stop();
+        work.Cancel();
+        Media.Suspend();
+        Notifications.Suspend();
+        Ai.Cancel();
+        lyricsKey = "";
+    }
+    public void Resume()
+    {
+        if (!suspended)
+            return;
+        work.Dispose();
+        work = new();
+        suspended = false;
+        gate.Resume();
+        lastWeather = DateTimeOffset.MinValue;
+        timer.Start();
+        UpdateActivity();
+        if (manager.Settings.NotificationsEnabled && manager.Settings.Widgets.Any(w => w.Enabled && w.Kind == "notifications"))
+        {
+            Notifications.Enable();
+            _ = Notifications.RefreshAsync(false);
+        }
+        Notify();
+    }
+    public void Dispose()
+    {
+        if (disposed)
+            return;
+        Suspend();
+        disposed = true;
+        timer.Tick -= Tick;
+        manager.Changed -= UpdateActivity;
+        Media.Changed -= OnMedia;
+        Weather.Changed -= Notify;
+        Notifications.Changed -= Notify;
+        Ai.Changed -= Notify;
+        Media.Dispose();
+        Controls.Dispose();
+        work.Dispose();
+    }
 }
