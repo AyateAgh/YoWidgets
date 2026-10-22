@@ -30,7 +30,7 @@ internal sealed class DesktopPlatform:IDisposable
         catalog=JsonSerializer.Deserialize<CatalogDocument>(seed,CatalogJson.Options)!;CatalogRules.Validate(catalog);
         if(File.Exists(cache))try{var saved=JsonSerializer.Deserialize<CatalogDocument>(File.ReadAllText(cache),CatalogJson.Options)!;CatalogRules.Validate(saved);catalog=saved;}catch(Exception e)when(e is IOException or JsonException or InvalidDataException){catalogError="The saved catalog was reset.";}
         Content=new(Path.Combine(root,"Content"));if(migrate)Content.ImportLegacy(catalog);Content.EnsureRegistry();Content.UpgradeLegacyMetadata();WidgetPacks.LoadInstalled(Content);
-        http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(30)};http.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.6.2");
+        http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(30)};http.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.6.3");
         manager.Changed+=Publish;
     }
     internal object Snapshot()=>new {

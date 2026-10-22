@@ -95,6 +95,8 @@ let active: ViewTransition | undefined;
 let generation = 0;
 const stopReveal = () => active?.skipTransition();
 window.addEventListener("yo:suspend", stopReveal);
+window.addEventListener("resize", stopReveal);
+window.addEventListener("yo:window-transition", stopReveal);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) stopReveal();
 });

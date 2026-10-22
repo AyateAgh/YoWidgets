@@ -38,6 +38,7 @@ import { DownloadsView } from "./DownloadsView";
 import { SettingsView } from "./SettingsView";
 import { usePreferences } from "./usePreferences";
 import { applyAppearance, defaultAppearance } from "./appearance";
+import { workspaceMotion } from "./workspaceMotion";
 
 export function App() {
   const [state, setState] = useState<Snapshot | null>(
@@ -65,6 +66,8 @@ export function App() {
   const rail = useRef<HTMLElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const initialized = useRef(false);
+  const [hostReady, setHostReady] = useState(preview);
+  const presented = useRef(false);
   const handledRequest = useRef("");
   const accept = useCallback((incoming: Snapshot) => {
     setState((previous) =>
@@ -127,8 +130,13 @@ export function App() {
         accept(event.state as Snapshot);
       if (event.type === "closeRequested") setPendingPage("__close");
       if (event.type === "resume") {
+        window.dispatchEvent(new Event("yo:present"));
         void refresh().catch((e) => setError(e.message));
       }
+      if (event.type === "present")
+        window.dispatchEvent(new Event("yo:present"));
+      if (event.type === "windowTransition")
+        window.dispatchEvent(new Event("yo:window-transition"));
       if (event.type === "connectionError")
         setError(event.error ?? "Connection interrupted.");
     });
@@ -141,14 +149,29 @@ export function App() {
           positions.current = saved.scroll;
           setLibrary(saved.library);
           await refresh();
+          setHostReady(true);
         })
-        .catch((e) => setError(e.message));
+        .catch((e) => {
+          setError(e.message);
+          setHostReady(true);
+        });
     else if (!preview)
       setError(
         "Open YoWidgets on your desktop to connect to its native engine.",
       );
     return unsubscribe;
   }, [accept, refresh]);
+  useEffect(() => {
+    const surface = main.current?.parentElement;
+    if (!main.current || !surface) return;
+    return workspaceMotion(main.current, surface);
+  }, [page, Boolean(state)]);
+  useEffect(() => {
+    if ((!state && !error) || !hostReady || presented.current) return;
+    presented.current = true;
+    if (native) void rpc("ui.present").catch((e) => setError(e.message));
+    else window.dispatchEvent(new Event("yo:present"));
+  }, [hostReady, Boolean(state), Boolean(error)]);
   useEffect(() => {
     if (page === "home" && native) void rpc("catalog.refresh").catch(() => {});
   }, [page]);
@@ -224,13 +247,19 @@ export function App() {
       );
       if (active && pill.current) {
         pill.current.style.transform = `translateY(${active.offsetTop}px)`;
+        pill.current.style.height = `${active.offsetHeight}px`;
         pill.current.style.opacity = "1";
       }
     };
     update();
     const observer = new ResizeObserver(update);
     if (rail.current) observer.observe(rail.current);
-    return () => observer.disconnect();
+    const navigation = rail.current?.querySelector(".primary-navigation");
+    navigation?.addEventListener("scroll", update, { passive: true });
+    return () => {
+      observer.disconnect();
+      navigation?.removeEventListener("scroll", update);
+    };
   }, [page]);
   const navigate = (target: string, force = false) => {
     if (target === page) return;

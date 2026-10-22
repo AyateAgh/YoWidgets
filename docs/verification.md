@@ -1,5 +1,12 @@
-# YoWidgets 0.6.2 verification
+# YoWidgets 0.6.3 verification
 
+## Window bounds and responsive motion, 2026-10-22
+
+Frontend 27/27, content platform 23/23 and native platform 15/15 passed. The full default local Windows build also passed core 87/87, assistant transport 75/75 and all native visual/voice/composer/media/control/document/compositor suites. The additional frontend startup recovery test and expanded native minimize/OS-restore assertions passed after the full run. Owned install/removal checks passed 15/15.
+
+Native geometry tests exercise the real WindowChrome/layered window: work-area maximize, normal restore, Windows restore, rapid interrupted toggles, and maximized-state preservation through minimize. Pure geometry cases cover 100/125/150/200% scales, small work areas and negative monitor coordinates. Motion tests cover repeated reveal cancellation, suspend/disposal cleanup, reduced motion and resize interruption. The initial native snapshot failure test verifies ui.present exposes the retry screen.
+
+An isolated actual 0.6.3 host rendered Settings with its lower rail button visible at 640 × 420 logical pixels. Maximize produced a 1536 × 806 logical window above the taskbar on the current 125% desktop, then restored the compact bounds. Minimize/reopen retained maximization, and process restart retained normal size/position/navigation. These are point-in-time UI checks; sustained frame rate, manual-resize motion quality across GPUs, and physical mixed-DPI monitor transitions remain unmeasured. A read-only review identified initial-error presentation and minimize-state loss; both were fixed and covered by focused regressions.
 ## Appearance, 2026-10-22
 
 Frontend 23/23, content platform 22/22, native platform 14/14, core 87/87 and assistant 75/75 passed in the full default Windows build, including native visual suites. Appearance tests cover atomic native validation/persistence, one/two-color selection, transparency preserving the theme, color conversion, readable gradient endpoint text, object preference acknowledgements and preserving circular transitions across native acknowledgements.

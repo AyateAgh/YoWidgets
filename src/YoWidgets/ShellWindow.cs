@@ -12,14 +12,16 @@ internal sealed class ShellWindow:Window
     readonly Grid root=new(){Background=new SolidColorBrush(Color.FromRgb(8,8,8))};
     readonly ShellLifetime lifetime=new();readonly CancellationTokenSource stop=new();readonly DispatcherTimer expiry=new();
     readonly Dictionary<string,(string Path,string Hash)> imports=[];
+    readonly ShellWindowLayout layout;WindowState previousState=WindowState.Normal;
     readonly Stopwatch startup=Stopwatch.StartNew();WebView2? view;CancellationTokenSource? subscription;bool ready,exit,draftDirty,pendingWrites;string profile="";DateTimeOffset maintained=DateTimeOffset.MinValue;
     internal ShellWindow()
     {
-        Title="YoWidgets";Width=1180;Height=800;MinWidth=860;MinHeight=600;WindowStartupLocation=WindowStartupLocation.CenterScreen;WindowStyle=WindowStyle.None;AllowsTransparency=true;Background=Brushes.Transparent;
+        Title="YoWidgets";Width=1180;Height=800;MinWidth=640;MinHeight=420;WindowStyle=WindowStyle.None;AllowsTransparency=true;Background=Brushes.Transparent;
         System.Windows.Shell.WindowChrome.SetWindowChrome(this,new(){CaptionHeight=0,ResizeBorderThickness=new Thickness(6),GlassFrameThickness=new Thickness(0),CornerRadius=new CornerRadius(24)});
+        layout=new(this,Post,ReadPlacement(),SavePlacement);
         Content=root;ShowBootstrap();SourceInitialized+=(_,_)=>{var source=(HwndSource)PresentationSource.FromVisual(this);source.AddHook(Hook);var dark=1;Native.DwmSetWindowAttribute(Native.Handle(this),20,ref dark,4);var corner=2;Native.DwmSetWindowAttribute(Native.Handle(this),33,ref corner,4);};
         Loaded+=async(_,_)=>await Initialize();Closing+=ClosingWindow;Closed+=(_,_)=>{stop.Cancel();subscription?.Cancel();view?.Dispose();expiry.Stop();Application.Current.Shutdown();};
-        StateChanged+=(_,_)=>{if(WindowState==WindowState.Minimized)_=Sleep(false);else if(IsVisible&&ready)Wake();};
+        StateChanged+=(_,_)=>{var before=previousState;previousState=WindowState;if(WindowState==WindowState.Minimized)_=Sleep(false);else if(before==WindowState.Minimized&&IsVisible&&ready)Wake();};
         expiry.Interval=TimeSpan.FromMinutes(15);expiry.Tick+=(_,_)=>{expiry.Stop();if(lifetime.ShouldExit(DateTimeOffset.UtcNow))EvictHost();};
     }
     void ShowBootstrap()
@@ -57,13 +59,14 @@ internal sealed class ShellWindow:Window
             id=PlatformSettings.Text(value,"id");var method=PlatformSettings.Text(value,"method");var args=value.TryGetProperty("args",out var a)?a.Clone():JsonSerializer.SerializeToElement(new{});
             if(method=="ui.ready")
             {
-                ready=true;lifetime.Show();foreach(var child in root.Children.Cast<UIElement>().Where(c=>!ReferenceEquals(c,view)).ToArray())root.Children.Remove(child);root.Background=new SolidColorBrush(Color.FromArgb(1,8,8,8));view!.Visibility=Visibility.Visible;
+                ready=true;lifetime.Show();
                 Reply(id,new{ready=true,viewState=ReadViewState()});Subscribe();App.Trace("shell-ready",$"firstReadyMs={startup.Elapsed.TotalMilliseconds:F1}; pid={Environment.ProcessId}");return;
             }
+            if(method=="ui.present"){foreach(var child in root.Children.Cast<UIElement>().Where(c=>!ReferenceEquals(c,view)).ToArray())root.Children.Remove(child);root.Background=new SolidColorBrush(Color.FromArgb(1,8,8,8));if(IsVisible&&WindowState!=WindowState.Minimized)view!.Visibility=Visibility.Visible;Post(new{type="present"});Reply(id,new{accepted=true});return;}
             if(method=="window.close"){if(args.TryGetProperty("discard",out var discard)&&discard.GetBoolean())draftDirty=false;if(draftDirty){Post(new{type="closeRequested"});Reply(id,new{accepted=true});return;}Reply(id,new{accepted=true});await Sleep(true);return;}
-            if(method=="window.minimize"){WindowState=WindowState.Minimized;Reply(id,new{accepted=true});return;}
-            if(method=="window.maximize"){WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;Reply(id,new{accepted=true});return;}
-            if(method=="window.drag"){if(GetAsyncKeyState(1)<0){try{DragMove();}catch(InvalidOperationException){}}Reply(id,new{accepted=true});return;}
+            if(method=="window.minimize"){layout.Settle(true);WindowState=WindowState.Minimized;Reply(id,new{accepted=true});return;}
+            if(method=="window.maximize"){await layout.ToggleAsync();Reply(id,new{accepted=true});return;}
+            if(method=="window.drag"){if(GetAsyncKeyState(1)<0){layout.Settle();try{DragMove();}catch(InvalidOperationException){}}Reply(id,new{accepted=true});return;}
             if(method=="ui.persist"){SaveViewState(args);Reply(id,new{accepted=true});return;}
             if(method=="ui.dirty"){draftDirty=args.TryGetProperty("dirty",out var dirty)&&dirty.GetBoolean();Reply(id,new{accepted=true});return;}
             if(method=="ui.saving"){pendingWrites=args.TryGetProperty("saving",out var saving)&&saving.GetBoolean();Reply(id,new{accepted=true});if(!pendingWrites&&(!IsVisible||WindowState==WindowState.Minimized))_=Sleep(false);return;}
@@ -104,6 +107,7 @@ internal sealed class ShellWindow:Window
     }
     async Task Sleep(bool hide)
     {
+        layout.Settle(true);layout.Save();
         if(pendingWrites){if(hide)Hide();expiry.Stop();return;}
         if(exit)return;var generation=lifetime.Hide(DateTimeOffset.UtcNow);subscription?.Cancel();expiry.Stop();if(!draftDirty)expiry.Start();
         if(hide)Hide();if(view?.CoreWebView2==null){EvictHost();return;}
@@ -136,26 +140,30 @@ internal sealed class ShellWindow:Window
     }
     void Wake()
     {
-        lifetime.Show();expiry.Stop();if(!IsVisible)Show();if(WindowState==WindowState.Minimized)WindowState=WindowState.Normal;
-        if(view?.CoreWebView2 is {} core&&ready){core.Resume();view.Visibility=Visibility.Visible;Post(new{type="resume"});Subscribe();}
+        var reveal=!IsVisible||WindowState==WindowState.Minimized||lifetime.HiddenAt!=null;
+        lifetime.Show();expiry.Stop();if(!IsVisible)Show();if(WindowState==WindowState.Minimized)WindowState=layout.RestoreState;
+        if(view?.CoreWebView2 is {} core&&ready&&reveal){core.Resume();view.Visibility=Visibility.Visible;Post(new{type="resume"});Subscribe();}
         Activate();
     }
     void ClosingWindow(object? sender,CancelEventArgs e){if(exit)return;e.Cancel=true;if(draftDirty)Post(new{type="closeRequested"});else _=Sleep(true);}
     void EvictHost(){if(!pendingWrites&&lifetime.CanEvict(IsVisible&&WindowState!=WindowState.Minimized,draftDirty))ShutdownHost();}
-    internal void ShutdownHost(){if(exit)return;exit=true;expiry.Stop();subscription?.Cancel();view?.Dispose();view=null;Close();}
+    internal void ShutdownHost(){if(exit)return;layout.Settle(true);layout.Save();exit=true;expiry.Stop();subscription?.Cancel();view?.Dispose();view=null;Close();}
     IntPtr Hook(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled)
     {
         if(message==ShellController.ShowMessage){handled=true;Wake();}else if(message==ShellController.ExitMessage){handled=true;ShutdownHost();}else if(message==ShellController.EvictMessage){handled=true;EvictHost();}return IntPtr.Zero;
     }
-    object ReadViewState()
+    Dictionary<string,string> ReadViewState()
     {
-        try{return JsonSerializer.Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(App.DataRoot,"ui-state.json")))??new(){["page"]="home"};}catch(Exception e)when(e is IOException or JsonException){return new{page="home"};}
+        try{return JsonSerializer.Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(App.DataRoot,"ui-state.json")))??new(){["page"]="home"};}catch(Exception e)when(e is IOException or JsonException){return new(){["page"]="home"};}
     }
+    ShellWindowPlacement? ReadPlacement()=>ShellWindowLayout.ParseSaved(ReadViewState().GetValueOrDefault("window"));
+    void WriteViewState(object value){try{var file=Path.Combine(App.DataRoot,"ui-state.json");File.WriteAllText(file+".tmp",JsonSerializer.Serialize(value));File.Move(file+".tmp",file,true);}catch(IOException e){App.Log("window-state",e);}}
+    void SavePlacement(ShellWindowPlacement placement){var state=ReadViewState();state["window"]=JsonSerializer.Serialize(placement,CatalogJson.Options);WriteViewState(state);}
     void SaveViewState(JsonElement value)
     {
         var allowed=new HashSet<string>{"page","query","sort","category","kind","pack","status","scroll","library"};var safe=new Dictionary<string,object>();
         foreach(var property in value.EnumerateObject())if(allowed.Contains(property.Name)&&property.Value.ValueKind==JsonValueKind.String&&property.Value.GetString() is {} text&&text.Length<2048)safe[property.Name]=text;
-        var file=Path.Combine(App.DataRoot,"ui-state.json");File.WriteAllText(file+".tmp",JsonSerializer.Serialize(safe));File.Move(file+".tmp",file,true);
+        if(ReadViewState().TryGetValue("window",out var placement))safe["window"]=placement;WriteViewState(safe);
     }
     void ShowRecovery(string message)
     {

@@ -2922,3 +2922,137 @@ html[data-panel-clear="true"] .settings-nav button {
 html[data-panel-clear="true"] .settings-nav button.selected {
   background: var(--hover);
 }
+/* The caption and bottom navigation always fit inside the native monitor work area. */
+.application {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.window-caption {
+  flex: 0 0 28px;
+}
+.app-frame {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.content-surface,
+.main-content {
+  min-height: 0;
+}
+.sidebar {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  min-height: 0;
+  height: 100%;
+}
+.brand-button {
+  grid-row: 1;
+  flex: none;
+}
+.primary-navigation {
+  grid-row: 2;
+  align-self: start;
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.primary-navigation::-webkit-scrollbar {
+  display: none;
+}
+.sidebar-bottom {
+  grid-row: 3;
+  margin-top: 12px;
+}
+.nav-button {
+  flex: none;
+}
+.main-content {
+  overflow-x: hidden;
+}
+.header-tools,
+.heading-group,
+.settings-content,
+.form-field,
+.download-info {
+  min-width: 0;
+}
+.header-tools {
+  flex-wrap: wrap;
+}
+.setting-label,
+.setting-description,
+.card-heading h3 {
+  overflow-wrap: anywhere;
+}
+.setting-row > .button {
+  flex-shrink: 0;
+}
+@media (max-height: 600px) {
+  .sidebar {
+    padding-top: 4px;
+    padding-bottom: 6px;
+  }
+  .brand-button {
+    height: 38px;
+    margin-bottom: 10px;
+  }
+  .primary-navigation,
+  .sidebar-bottom {
+    gap: 4px;
+  }
+  .nav-button,
+  .liquid-spot {
+    height: 38px;
+    border-radius: 13px;
+  }
+  .sidebar-bottom {
+    margin-top: 8px;
+  }
+  .main-content {
+    padding-top: 20px;
+    padding-bottom: 24px;
+  }
+  .page-header {
+    margin-bottom: 20px;
+  }
+}
+@media (max-width: 900px) {
+  .theme-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .settings-panel {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .setting-row {
+    gap: 14px;
+  }
+  .volume-row {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 760px) {
+  .settings-nav {
+    position: static;
+  }
+  .header-tools {
+    gap: 8px;
+  }
+  .form-actions {
+    flex-wrap: wrap;
+  }
+  .city-field {
+    flex-wrap: wrap;
+  }
+  .city-field > .button {
+    margin-left: auto;
+  }
+  .accent-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
