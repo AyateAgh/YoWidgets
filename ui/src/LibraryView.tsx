@@ -16,6 +16,7 @@ import {
   collections,
   activeCount,
   belongs,
+  onDesktop,
   kindNames,
   packName,
 } from "./catalog";
@@ -46,6 +47,7 @@ export function LibraryView({
   const setPack = (pack: string) => setPreferences({ ...preferences, pack });
   const [removing, setRemoving] = useState<CatalogItem | null>(null);
   const [busy, setBusy] = useState(false);
+  const matchesTab = (widget: Snapshot["widgets"][number]) => tab === "active" ? onDesktop(widget) : tab === "hidden" ? !onDesktop(widget) : true;
   const items = state.installed
     .map((i) => state.catalog.items.find((c) => c.id === i.item.id) ?? i.item)
     .filter(
@@ -54,7 +56,7 @@ export function LibraryView({
         `${i.title} ${packName(i.pack)}`
           .toLowerCase()
           .includes(query.toLowerCase()) &&
-        (tab !== "active" || state.widgets.some((w) => belongs(i, w))),
+        (tab === "installed" || state.widgets.some((w) => belongs(i, w) && matchesTab(w))),
     );
   const remove = async () => {
     if (!removing) return;
@@ -93,7 +95,10 @@ export function LibraryView({
             className={tab === "active" ? "selected" : ""}
             onClick={() => setTab("active")}
           >
-            On desktop <span>{state.activeCount}</span>
+            On desktop <span>{state.widgets.filter(onDesktop).length}</span>
+          </button>
+          <button className={tab === "hidden" ? "selected" : ""} onClick={() => setTab("hidden")}>
+            Hidden <span>{state.widgets.filter((w) => !onDesktop(w)).length}</span>
           </button>
         </div>
         <div className="header-tools">
@@ -125,6 +130,8 @@ export function LibraryView({
           />
         </div>
       </div>
+      {state.snoozed && <div className="offline-banner" role="status">Widgets are paused. <Button onClick={() => void run("app.snooze").catch(() => {})}>Resume widgets</Button></div>}
+      {tab === "active" && items.length > 0 && <p className="section-description">Each row is one desktop window. Use Locate to bring it forward.</p>}
       {!items.length ? (
         <Empty
           icon={<Library size={30} />}
@@ -144,7 +151,7 @@ export function LibraryView({
             </Button>
           }
         />
-      ) : tab === "active" ? (
+      ) : tab !== "installed" ? (
         <div className="desktop-list">
           {items.map((item) => (
             <section className="desktop-group" key={item.id}>
@@ -156,7 +163,7 @@ export function LibraryView({
                 <InstallButton item={item} state={state} run={run} />
               </div>
               {state.widgets
-                .filter((w) => belongs(item, w))
+                .filter((w) => belongs(item, w) && matchesTab(w))
                 .map((widget, index) => (
                   <div className="instance-row" key={widget.id}>
                     <div className="instance-preview">
@@ -169,10 +176,10 @@ export function LibraryView({
                       </b>
                       <span
                         className={
-                          widget.enabled ? "status-dot active" : "status-dot"
+                          onDesktop(widget) ? "status-dot active" : "status-dot"
                         }
                       >
-                        {widget.enabled ? "On desktop" : "Hidden"}
+                        {onDesktop(widget) ? "On desktop" : widget.enabled && state.snoozed ? "Paused" : "Hidden"}
                       </span>
                     </div>
                     <Dropdown
@@ -194,19 +201,23 @@ export function LibraryView({
                       }))}
                     />
                     <Button
+                      style={{display:onDesktop(widget)?undefined:"none"}}
+                      onClick={() => void run("widget.locate", {id:widget.id}).catch(() => {})}
+                    >Locate</Button>
+                    <Button
                       onClick={() =>
                         void run(
-                          widget.enabled ? "widget.disable" : "widget.enable",
+                          onDesktop(widget) ? "widget.disable" : "widget.enable",
                           { id: widget.id },
                         ).catch(() => {})
                       }
                     >
-                      {widget.enabled ? (
+                      {onDesktop(widget) ? (
                         <Pause size={14} />
                       ) : (
                         <Play size={14} />
                       )}{" "}
-                      {widget.enabled ? "Hide" : "Show"}
+                      {onDesktop(widget) ? "Hide" : "Show"}
                     </Button>
                     <button
                       className="icon-button"

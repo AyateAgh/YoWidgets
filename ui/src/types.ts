@@ -42,6 +42,7 @@ export interface Widget {
   pack: string;
   size: string;
   enabled: boolean;
+  visible?: boolean;
   monitor: string;
 }
 export interface Job {

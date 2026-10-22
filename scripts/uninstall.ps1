@@ -52,6 +52,7 @@ try{$dataHash=([BitConverter]::ToString($dataHasher.ComputeHash([Text.Encoding]:
 $dataMutex=$null
 try{$dataMutex=[Threading.Mutex]::OpenExisting('Local\YoWidgets-'+$dataHash)}catch [Threading.WaitHandleCannotBeOpenedException]{}
 if($dataMutex){$dataMutex.Dispose();throw 'YoWidgets is using this data. Close all copies before removal.'}
+if(Test-Path -LiteralPath (Join-Path $m.DataRoot 'focus-session.json')){throw 'Focus has unfinished system restoration. Reconnect audio devices and restart YoWidgets before removal.'}
 if ($m.PackageFullName) {
  $package=Get-AppxPackage | Where-Object { $_.PackageFullName -eq $m.PackageFullName -and $_.Name -eq 'YoWidgets.Native' }
  if ($package) { Remove-AppxPackage -Package $package.PackageFullName }
@@ -140,7 +141,7 @@ if (Test-Path -LiteralPath $m.DataRoot) {
   foreach($directory in (Get-ChildItem -LiteralPath $contentRoot -Recurse -Directory -Force|Sort-Object {$_.FullName.Length} -Descending)){Remove-Item -LiteralPath $directory.FullName}
   Remove-Item -LiteralPath $contentRoot
  }
- $ownedData=@('catalog-cache.json','catalog-cache.json.tmp','ui-state.json','ui-state.json.tmp','settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','owned-images.json.tmp','bundle-cache.json.tmp','browser-companion.key')
+ $ownedData=@('catalog-cache.json','catalog-cache.json.tmp','ui-state.json','ui-state.json.tmp','settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','focus-session.json','focus-session.json.tmp','owned-images.json.tmp','bundle-cache.json.tmp','browser-companion.key')
  foreach($name in $ownedData) { $file=Join-Path $m.DataRoot $name; if (Test-Path -LiteralPath $file -PathType Leaf) { Remove-Item -LiteralPath $file -Force } }
  $imageJournal=Join-Path $m.DataRoot 'owned-images.json'
  $images=Join-Path $m.DataRoot 'images'

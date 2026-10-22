@@ -16,7 +16,7 @@ internal sealed class PlatformSettings(WidgetManager manager,InterfaceAccent? ac
             chat=AssistantProtocol.Providers.Select(p=>new {provider=p,model=ChatConnections.Find(s,p)?.Model??(s.AiProvider==p?s.AiModel:AssistantProtocol.DefaultModel(p)),connected=ChatConnections.Find(s,p)!=null||s.AiProvider==p&&!string.IsNullOrWhiteSpace(s.AiKeyProtected)}).ToArray(),
             generation=GenerationConnections.Categories.Select(c=>{var g=GenerationConnections.Get(s,c.Id);return new {id=c.Id,title=c.Title,g.Mode,g.Provider,g.Model,g.Voice,keySaved=!string.IsNullOrEmpty(g.KeyProtected),providers=GenerationConnections.Providers(c.Id)};}).ToArray(),
             mediaSource=manager.Data.Media.SelectedSource,mediaSources=manager.Data.Media.Sources,bridgeStatus=manager.Data.Media.BrowserBridgeStatus,
-            canUninstall=Cleanup.IsInstalled,version="0.6.5",platform=Environment.OSVersion.VersionString
+            canUninstall=Cleanup.IsInstalled,version="0.6.6",platform=Environment.OSVersion.VersionString
         };
     }
     internal async Task<object> Execute(string method,JsonElement args,CancellationToken token)

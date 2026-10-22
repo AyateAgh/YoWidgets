@@ -11,8 +11,29 @@ internal static class Program
     static void Check(bool value,string message){if(!value)throw new InvalidOperationException(message);}
     static async Task Test(string name,Func<Task> run){total++;try{await run();Console.WriteLine("PASS "+name);}catch(Exception e){failed++;Console.WriteLine("FAIL "+name+": "+e.Message);}}
     static JsonElement Args(object value)=>JsonSerializer.SerializeToElement(value,CatalogJson.Options);
-    [STAThread]static int Main()
+    static int CheckFocusAppAudio()
     {
+        var folder=AppContext.BaseDirectory;var source=Environment.ProcessPath!;var children=new List<System.Diagnostics.Process>();
+        System.Diagnostics.Process Launch(string name){var path=Path.Combine(folder,name+".exe");File.Copy(source,path,true);var process=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path,"--focus-audio-fixture"){UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,CreateNoWindow=true})!;children.Add(process);Check(process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(8)).GetAwaiter().GetResult()=="ready","Audio fixture did not open");return process;}
+        try{
+            Launch("YoFocusMusicFixture");var musicBefore=FocusAppAudio.Read(["YoFocusMusicFixture"]);Check(musicBefore.Length>0,"Music fixture has no audio session");
+            using var change=new ManualResetEventSlim();using var watch=FocusAppAudio.Watch(()=>change.Set());Check(change.Wait(5000),"Audio watch did not initialize");change.Reset();
+            Launch("YoFocusChatFixture");Check(change.Wait(5000),"New audio session did not notify Focus");var retained=new Dictionary<string,object>();var chat=FocusAppAudio.Read(["YoFocusChatFixture"],retained);Check(chat.Length>0,"Call fixture has no audio session");
+            try{foreach(var state in chat)FocusAppAudio.SetMute(state.Device,true,retained);Check(FocusAppAudio.Read(["YoFocusChatFixture"]).All(state=>state.Muted),"Call app session was not muted");var musicAfter=FocusAppAudio.Read(["YoFocusMusicFixture"]);Check(musicBefore.All(before=>musicAfter.Any(after=>after.Device==before.Device&&after.Muted==before.Muted)),"Call quieting changed music");Console.WriteLine("PASS actual per-app mute leaves the separate music session unchanged");}
+            finally{var exiting=children.Last();exiting.StandardInput.WriteLine("quit");Check(exiting.WaitForExit(5000),"Chat did not exit during Focus");foreach(var state in chat)FocusAppAudio.SetMute(state.Device,state.Muted,retained);foreach(var control in retained.Values)System.Runtime.InteropServices.Marshal.ReleaseComObject(control);retained.Clear();}
+            Launch("YoFocusChatFixture");
+            Check(FocusAppAudio.Read(["YoFocusChatFixture"]).All(after=>chat.Any(before=>after.Muted==before.Muted)),"Original call app mute state not restored after exit and relaunch");Console.WriteLine("PASS native call app state restore and new-session notification");return 0;
+        }finally{foreach(var child in children){try{if(!child.HasExited){child.StandardInput.WriteLine("quit");if(!child.WaitForExit(5000))child.Kill();}}finally{child.Dispose();}}}
+    }
+    [STAThread]static int Main(string[] args)
+    {
+        if(args.Contains("--focus-audio-fixture")){using var speaker=new PcmSpeaker(System.Windows.Threading.Dispatcher.CurrentDispatcher);speaker.Write(new byte[48000*20]);Console.WriteLine("ready");Console.ReadLine();return 0;}
+        if(args.Contains("--focus-app-audio-check"))return CheckFocusAppAudio();
+        if(args.Contains("--focus-native-check")){
+            var environment=new WindowsFocusEnvironment();var original=environment.Profile;
+            try{environment.Profile=FocusSession.Quiet;Check(environment.Profile==FocusSession.Quiet,"Windows did not apply DND");Console.WriteLine("PASS native Windows Do Not Disturb set/read");_=environment.Audio();Console.WriteLine("PASS native communication audio session enumeration (no audio mutation)");}
+            finally{environment.Profile=original;Check(environment.Profile==original,"Windows did not restore DND");Console.WriteLine("PASS original Windows Do Not Disturb restored");}return 0;
+        }
         var root=Path.Combine(Path.GetTempPath(),"YoPlatformNative-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
         typeof(App).GetProperty(nameof(App.DataRoot),BindingFlags.Static|BindingFlags.Public)!.SetValue(null,root);
         var app=new App{ShutdownMode=ShutdownMode.OnExplicitShutdown};
@@ -50,7 +71,7 @@ internal static class Program
                     await platform.Execute("widget.add",Args(new{id="glass-clock"}),CancellationToken.None);await platform.Execute("widget.add",Args(new{id="glass-clock"}),CancellationToken.None);
                     var first=manager.Settings.Widgets[0];var second=manager.Settings.Widgets[1];manager.Disable(first);await platform.Execute("widget.enable",Args(new{id=first.Id}),CancellationToken.None);
                     Check(first.Enabled&&second.Enabled,"Showing one instance disabled the other");
-                    await platform.Execute("widget.remove",Args(new{id=first.Id}),CancellationToken.None);Check(manager.Settings.Widgets.Count==1,"Removing an instance removed the whole content item");Check(platform.Content.IsInstalled("glass-clock"),"Removing an instance uninstalled its resources");
+                    await platform.Execute("widget.remove",Args(new{id=first.Id}),CancellationToken.None);Check(manager.Settings.Widgets.Count==1,"Removing an instance removed the whole content item");Check(manager.ActiveCount==1,"Removing one instance increased or corrupted the desktop count");Check(platform.Content.IsInstalled("glass-clock"),"Removing an instance uninstalled its resources");
                 });
                 await Test("failed removal preserves active instances during installation",async()=>{
                     var catalog=JsonSerializer.Deserialize<CatalogDocument>(File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),"catalog","v1","catalog.json")),CatalogJson.Options)!;
@@ -105,6 +126,23 @@ internal static class Program
                     using var layout=new ShellWindowLayout(fixture,_=>{},transition:(_,_,commit,_)=>{calls++;if(calls==1)throw new InvalidOperationException("Fixture render failure");commit();return Task.FromResult(true);});fixture.Show();
                     try{await layout.ToggleAsync();Check(fixture.WindowState==WindowState.Maximized,"Render failure prevented geometry fallback");await layout.ToggleAsync();Check(fixture.WindowState==WindowState.Normal&&!layout.IsAnimating,"Previous render failure poisoned restore");}finally{fixture.Close();}
                 });
+                await Test("widget action pills never reuse a parented label",()=>{foreach(var label in new[]{"Choose photo","Refresh","Wi-Fi","DND","Sound / mute"}){var button=WidgetVisuals.Pill(label,()=>{});Check(button.Content is FrameworkElement,"Missing pill content");}return Task.CompletedTask;});
+                await Test("every installed native widget can construct without changing system settings",()=>{foreach(var pack in new[]{"glass","liquid"})foreach(var kind in new[]{"photo","focus","quick","notifications"}){var content=WidgetContentFactory.Create(manager,new(){Kind=kind,Pack=pack},preview:true);Check(content!=null,"Missing widget "+kind);}return Task.CompletedTask;});
+                await Test("failed window creation cannot leave enabled or counted instances",()=>{
+                    var failedRoot=Path.Combine(root,"failing-window");Directory.CreateDirectory(failedRoot);using var failing=new WidgetManager(failedRoot,true,(_,_)=>throw new InvalidOperationException("Fixture construction failure"));
+                    var count=failing.Settings.Widgets.Count;try{failing.Add("photo","glass");}catch(InvalidOperationException){}Check(failing.Settings.Widgets.Count==count&&failing.ActiveCount==0,"Failed Add created a ghost instance");
+                    var state=new WidgetState{Kind="quick",Enabled=false};failing.Settings.Widgets.Add(state);try{failing.Enable(state);}catch(InvalidOperationException){}Check(!state.Enabled&&failing.ActiveCount==0,"Failed Enable advanced visibility");return Task.CompletedTask;
+                });
+                await Test("Focus restores its lease on stop, expiry, restart and failed mute",()=>{
+                    var folder=Path.Combine(root,"focus-tests");Directory.CreateDirectory(folder);var env=new FakeFocusEnvironment();using(var focus=new FocusSession(folder,env)){focus.Start(37,true);Check(focus.End>DateTimeOffset.Now.AddMinutes(36)&&env.Profile==FocusSession.Quiet&&env.Outputs.Values.All(v=>v),"Focus did not apply settings");Check(File.Exists(Path.Combine(folder,"focus-session.json")),"Focus changes have no recovery lease");focus.Stop();Check(env.Profile=="Microsoft.QuietHoursProfile.Unrestricted"&&!env.Outputs["speaker"]&&env.Outputs["headset"],"Focus lost original profile or mute state");focus.Start(2,false);focus.Tick(DateTimeOffset.Now.AddMinutes(3));Check(focus.End==null&&env.Profile.EndsWith("Unrestricted"),"Expiry did not restore");focus.Start(5,true);using(var recovered=new FocusSession(folder,env))Check(recovered.End==null&&!env.Outputs["speaker"],"Restart did not restore");focus.Stop();env.FailMute=true;try{focus.Start(5,true);}catch(InvalidOperationException){}Check(focus.End==null&&env.Profile.EndsWith("Unrestricted")&&!env.Outputs["speaker"],"Failed start left system changes");env.FailMute=false;focus.Start(1,false);env.Profile="Microsoft.QuietHoursProfile.PriorityOnly";focus.Stop();Check(env.Profile.EndsWith("PriorityOnly"),"Stop overwrote a manual notification choice");}return Task.CompletedTask;
+                });
+                await Test("partial Focus recovery retains only unfinished restoration",()=>{
+                    var folder=Path.Combine(root,"focus-partial");Directory.CreateDirectory(folder);var env=new FakeFocusEnvironment();env.Outputs["headset"]=false;using var focus=new FocusSession(folder,env);focus.Start(5,true);env.Disconnected="headset";focus.Stop();Check(!env.Outputs["speaker"],"Available speaker not restored");env.Outputs["speaker"]=true;env.Disconnected="";using var recovery=new FocusSession(folder,env);Check(env.Outputs["speaker"]&&!env.Outputs["headset"],"Recovery changed an already restored speaker or lost pending headset");return Task.CompletedTask;
+                });
+                await Test("Disable all ends Focus and restores its system lease",()=>{var folder=Path.Combine(root,"focus-disable");Directory.CreateDirectory(folder);var env=new FakeFocusEnvironment();using var owner=new WidgetManager(folder,true,focusEnvironment:env);owner.Data.StartFocus(45);owner.DisableAll();Check(owner.Data.FocusEnd==null&&env.Profile.EndsWith("Unrestricted")&&!env.Outputs["speaker"],"Disable all left Focus active");return Task.CompletedTask;});
+                await Test("Focus never selects a music player or browser for call quieting",()=>{Check(FocusAppAudio.Eligible("Discord",FocusAppAudio.DefaultApps)&&FocusAppAudio.Eligible("Telegram",FocusAppAudio.DefaultApps),"Call apps not selected");foreach(var name in new[]{"Spotify","chrome","msedge","firefox","vlc","YoWidgets"})Check(!FocusAppAudio.Eligible(name,[name]),"Music or browser eligible for muting: "+name);Check(!FocusAppAudio.Eligible("unknown",FocusAppAudio.DefaultApps),"Unknown process muted");return Task.CompletedTask;});
+                await Test("Focus discovers later call sessions and restores their original state",()=>{var folder=Path.Combine(root,"focus-new-session");Directory.CreateDirectory(folder);var env=new FakeFocusEnvironment();using var focus=new FocusSession(folder,env);focus.Start(30,true);env.Outputs["late-call"]=false;focus.Tick(DateTimeOffset.Now);Check(env.Outputs["late-call"],"Late call not quieted");focus.Stop();Check(!env.Outputs["late-call"]&&!env.Outputs["speaker"]&&env.Outputs["headset"],"Late call changed original mute state");return Task.CompletedTask;});
+                await Test("later conflicting app instances disable ambiguous crash recovery",()=>{var states=FocusSession.Normalize([new("first",false,"app","app"),new("second",true,"app","app")]);Check(states.All(state=>state.RecoveryKey==null),"Conflicting app instances retained broad recovery");states=FocusSession.Normalize(states.Append(new("third",false,"app","app")).ToArray());Check(states.All(state=>state.RecoveryKey==null),"Later app instance re-enabled ambiguous recovery");return Task.CompletedTask;});
                 await Test("pending-write hide records the lifecycle needed for a later reveal",async()=>{var fixture=new ShellWindow();typeof(ShellWindow).GetField("pendingWrites",BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(fixture,true);await (Task)typeof(ShellWindow).GetMethod("Sleep",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(fixture,new object[]{false})!;var lifetime=(ShellLifetime)typeof(ShellWindow).GetField("lifetime",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(fixture)!;Check(lifetime.HiddenAt!=null,"Pending preferences hid the presentation without recording a future reveal");});
             }
             catch(Exception e){failed++;Console.WriteLine("FAIL native setup: "+e.Message);}
@@ -112,4 +150,13 @@ internal static class Program
         };
         app.Run();try{Directory.Delete(root,true);}catch(IOException){}return failed==0?0:1;
     }
+}
+
+internal sealed class FakeFocusEnvironment:IFocusEnvironment
+{
+    public string Profile {get;set;}="Microsoft.QuietHoursProfile.Unrestricted";
+    public Dictionary<string,bool> Outputs {get;}=new(){{"speaker",false},{"headset",true}};
+    public bool FailMute;public string Disconnected="";
+    public FocusAudioState[] Audio()=>Outputs.Select(pair=>new FocusAudioState(pair.Key,pair.Value)).ToArray();
+    public void SetMute(string device,bool value){if(device==Disconnected)throw new InvalidOperationException("Fixture disconnected output");if(value&&FailMute)throw new InvalidOperationException("Fixture mute failure");Outputs[device]=value;}
 }

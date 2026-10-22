@@ -4,6 +4,8 @@ namespace YoWidgets;
 
 internal sealed class NotificationService
 {
+    public bool HasIdentity {get;}
+    public NotificationService(){try{_=Windows.ApplicationModel.Package.Current.Id;HasIdentity=true;}catch{}Status=HasIdentity?"Connect to see your Windows notifications.":"Windows notification access requires a packaged installation. This portable build can open notification settings.";}
     public record Entry(string App, string Title, string Body, DateTimeOffset Time);
     public IReadOnlyList<Entry> Entries { get; private set; } = Array.Empty<Entry>(); public string Status { get; private set; } = "Windows identity and permission required"; public event Action? Changed; bool suspended; int generation; public void Enable()
     {
@@ -14,6 +16,7 @@ internal sealed class NotificationService
     {
         if (suspended)
             return;
+        if(!HasIdentity){Entries=Array.Empty<Entry>();Status="Windows notification access requires a packaged installation. This portable build can open notification settings.";Changed?.Invoke();return;}
         var v = ++generation;
         try
         {

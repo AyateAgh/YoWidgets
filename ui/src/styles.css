@@ -3078,3 +3078,19 @@ html[data-panel-clear="true"] .settings-nav button.selected {
     pointer-events: auto;
   }
 }
+
+/* Desktop instrument previews share the actual readable inset material. */
+.sample-glass.sample-focus,.sample-glass.sample-quick,.sample-glass.sample-notifications {
+  background: rgb(22 24 29 / 84%); color: #fff;
+}
+.sample-focus { width: 86%; gap: 14px; padding: 14px; }
+.focus-preview-heading { display:flex; align-items:center; gap:9px; width:100%; }
+.focus-moon { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; background:#b7a0ed35; flex-shrink:0; }
+.focus-preview-heading strong { display:block; font-size:clamp(9px,4cqw,16px); }
+.focus-preview-heading small { display:block; font-size:clamp(6px,2.5cqw,10px); opacity:.78; margin-top:3px; }
+.focus-preview-heading .focus-time { margin-left:auto; font-size:clamp(18px,9cqw,36px); font-weight:550; letter-spacing:-.7px; }
+.focus-preview-footer { display:flex; justify-content:space-between; align-items:center; width:100%; }
+.focus-preview-footer > span { border-radius:20px; padding:6px 10px; background:#ffffff22; font-size:clamp(7px,2.7cqw,10px); }
+.focus-preview-footer i { width:30px; height:30px; border-radius:50%; background:#fff; color:#202027; display:grid; place-items:center; }
+.sample-quick .control-orbs { width:100%; gap:6px; }
+.sample-quick .control-orbs > span { flex:1; border-radius:14px; }

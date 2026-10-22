@@ -30,23 +30,25 @@ internal sealed class WidgetManager : IDisposable
     }
     public event Action? Changed;
     readonly Dictionary<string, WidgetWindow> windows = []; bool disposed;
+    readonly Func<WidgetManager,WidgetState,WidgetWindow> createWindow;
     readonly BackgroundContrast contrast;
-    public WidgetManager(string root, bool forceNormal)
+    public WidgetManager(string root, bool forceNormal,Func<WidgetManager,WidgetState,WidgetWindow>? createWindow=null,IFocusEnvironment? focusEnvironment=null)
     {
+        this.createWindow=createWindow??((manager,state)=>new WidgetWindow(manager,state));
         ForceNormal = forceNormal;
         Store = new(Path.Combine(root, "settings.json"));
         Settings = Store.Load();
         var content=File.Exists(Path.Combine(root,"Content","installed.json"))?new ContentStore(Path.Combine(root,"Content")):null;
         if(content!=null)WidgetPacks.LoadInstalled(content);
         WidgetVisuals.Tone(false, true);
-        Data = new DataServices(this);
+        Data = new DataServices(this,root,focusEnvironment);
         Commands=new(this);
         contrast = new(() => windows.Values.ToArray());
         var migrate = Settings.FloatingPlacementVersion < 1;
         foreach (var s in Settings.Widgets.Where(s => s.Enabled))
         {
             if(content!=null&&!content.IsReady(s.ContentId)){s.Enabled=false;continue;}
-            Open(s, migrate);
+            try{Open(s,migrate);}catch(Exception e){s.Enabled=false;App.Log("widget-open",e);}
         }
         if (migrate)
             ResetPositions();
@@ -55,7 +57,8 @@ internal sealed class WidgetManager : IDisposable
         Data.UpdateActivity();
         contrast.Update(windows.Count > 0);
     }
-    public int ActiveCount => Settings.Widgets.Count(s => s.Enabled);
+    public bool IsOnDesktop(string id)=>!Snoozed&&windows.TryGetValue(id,out var window)&&window.IsVisible;
+    public int ActiveCount => windows.Count(pair=>IsOnDesktop(pair.Key));
     public void Save() => TrySave();
     public bool TrySave()
     {
@@ -77,20 +80,8 @@ internal sealed class WidgetManager : IDisposable
         }
         else
         {
-            var s = states.FirstOrDefault();
-            if (s == null)
-            {
-                s = new()
-                {
-                    Kind = kind,
-                    Pack = pack,
-                    X = 60 + (ActiveCount % 3) * 390,
-                    Y = 60 + (ActiveCount / 3) * 220
-                };
-                Settings.Widgets.Add(s);
-            }
-            s.Enabled = true;
-            Open(s, true);
+            if(states.FirstOrDefault() is {} existing)Enable(existing);
+            else Add(kind,pack);
         }
         Save();
         Changed?.Invoke();
@@ -98,8 +89,8 @@ internal sealed class WidgetManager : IDisposable
     public void Add(string kind, string pack, RectD? targetArea = null,string? contentId=null,string defaultSize="M")
     {
         var s = new WidgetState { Kind = kind, Pack = WidgetPacks.Get(pack).Id,ContentId=contentId??pack+"-"+kind,Size=defaultSize, Enabled = true, X = 80 + (ActiveCount % 3) * 380, Y = 80 + (ActiveCount / 3) * 220 };
-        Settings.Widgets.Add(s);
         Open(s, true, targetArea);
+        Settings.Widgets.Add(s);
         Save();
         Changed?.Invoke();
     }
@@ -111,8 +102,9 @@ internal sealed class WidgetManager : IDisposable
     {
         if (windows.ContainsKey(s.Id))
             return;
-        var w = new WidgetWindow(this, s);
+        var w = createWindow(this, s);
         windows[s.Id] = w;
+        try{
         w.Show();
         if (center)
         {
@@ -123,6 +115,7 @@ internal sealed class WidgetManager : IDisposable
         if (Snoozed)
             w.Hide();
         contrast.Update(!Snoozed && windows.Count > 0);
+        }catch{windows.Remove(s.Id);w.CloseOwned();throw;}
     }
     public void ResetPositions()
     {
@@ -151,6 +144,11 @@ internal sealed class WidgetManager : IDisposable
             window.Activate();
         }
     }
+    internal void Locate(string id)
+    {
+        if(!windows.TryGetValue(id,out var window)||!IsOnDesktop(id))throw new InvalidOperationException("Show this widget first.");
+        window.Show();window.Activate();
+    }
     public void Disable(WidgetState s)
     {
         s.Enabled = false;
@@ -160,9 +158,10 @@ internal sealed class WidgetManager : IDisposable
         Save();
         Changed?.Invoke();
     }
-    internal void Enable(WidgetState state){if(state.Enabled)return;state.Enabled=true;Open(state);Save();Changed?.Invoke();}
+    internal void Enable(WidgetState state){if(IsOnDesktop(state.Id)||Snoozed&&state.Enabled)return;state.Enabled=true;try{Open(state);}catch{state.Enabled=false;Save();Changed?.Invoke();throw;}Save();Changed?.Invoke();}
     public void DisableAll()
     {
+        Data.StopFocus();
         Settings.DisableIntegrations();
         foreach (var s in Settings.Widgets.ToArray())
             Disable(s);
@@ -190,7 +189,7 @@ internal sealed class WidgetManager : IDisposable
         {
             Data.Resume();
             foreach (var state in Settings.Widgets.Where(x => x.Enabled))
-                Open(state);
+                try{Open(state);}catch(Exception e){state.Enabled=false;App.Log("widget-open",e);}
         }
         contrast.Update(!snooze && windows.Count > 0);
         Changed?.Invoke();
@@ -214,7 +213,7 @@ internal sealed class WidgetManager : IDisposable
         windows.Clear();
         DesktopStatus = "";
         foreach (var s in Settings.Widgets.Where(s => s.Enabled))
-            Open(s);
+            try{Open(s);}catch(Exception e){s.Enabled=false;App.Log("widget-open",e);}
         Changed?.Invoke();
     }
     public void ShowOpticsTest()

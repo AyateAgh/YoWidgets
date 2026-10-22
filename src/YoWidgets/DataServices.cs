@@ -12,14 +12,13 @@ internal sealed class DataServices : IDisposable
     CancellationTokenSource? lyricWork;
     int lyricGeneration;
     DateTimeOffset nextLyricsAttempt;
-    public DateTimeOffset? FocusEnd
-    {
-        get; private set;
-    }
+    internal FocusSession Focus {get;}
+    public DateTimeOffset? FocusEnd=>Focus.End;
     public event Action? Changed; readonly WidgetManager manager; readonly DispatcherTimer timer; CancellationTokenSource work = new(); DateTimeOffset lastWeather = DateTimeOffset.MinValue; string lyricsKey = ""; bool suspended; bool disposed;
-    public DataServices(WidgetManager m)
+    public DataServices(WidgetManager m,string root,IFocusEnvironment? focusEnvironment=null)
     {
         manager = m;
+        Focus=new(root,focusEnvironment??new WindowsFocusEnvironment(()=>m.Settings.FocusQuietApps??FocusAppAudio.DefaultApps));Focus.Changed+=Notify;
         Browser=new(BrowserCompanionSetup.PairingToken());
         Ai.Browser=Browser;
         lyricsClient = new(lyricsHttp);
@@ -64,11 +63,6 @@ internal sealed class DataServices : IDisposable
             return;
         UpdateActivity();
         Media.Tick();
-        if (FocusEnd != null && DateTimeOffset.Now >= FocusEnd)
-        {
-            FocusEnd = null;
-            App.CurrentApp.Shell?.Status("Focus complete. Time for a break.");
-        }
         if (manager.Settings.Widgets.Any(x => x.Enabled && x.Kind == "weather") && DateTimeOffset.Now - lastWeather > TimeSpan.FromMinutes(20))
         {
             lastWeather = DateTimeOffset.Now;
@@ -91,12 +85,12 @@ internal sealed class DataServices : IDisposable
     }
     public void StartFocus(int minutes)
     {
-        FocusEnd = DateTimeOffset.Now.AddMinutes(minutes);
+        Focus.Start(minutes,manager.Settings.FocusQuietAppsEnabled);
         UpdateActivity();
     }
     public void StopFocus()
     {
-        FocusEnd = null;
+        Focus.Stop();
         UpdateActivity();
     }
     public async Task RefreshWeatherAsync()
@@ -192,6 +186,7 @@ internal sealed class DataServices : IDisposable
             return;
         Suspend();
         disposed = true;
+        Focus.Changed-=Notify;Focus.Dispose();
         timer.Tick -= Tick;
         manager.Changed -= UpdateActivity;
         Media.Changed -= OnMedia;

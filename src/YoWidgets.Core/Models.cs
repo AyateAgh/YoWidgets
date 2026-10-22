@@ -20,6 +20,9 @@ public sealed class WidgetState
 }
 public sealed class AppSettings
 {
+    public int FocusMinutes {get;set;}=25;
+    public bool FocusQuietAppsEnabled {get;set;}=true;
+    public string[] FocusQuietApps {get;set;}=["Telegram","Discord","DiscordPTB","DiscordCanary","WhatsApp","ms-teams","Teams","Signal","Slack","Zoom","Skype","Viber"];
     public string InterfaceAccent {get;set;}="neutral";
     public Dictionary<string,string[]> LibraryResume {get;set;}=[];
     public bool InterfaceSounds { get; set; }

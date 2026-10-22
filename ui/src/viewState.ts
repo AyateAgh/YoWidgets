@@ -40,7 +40,7 @@ export function restoreView(saved: Record<string, string>) {
   const raw = object(saved.library);
   const library: LibraryPreferences = {
     query: text(raw.query),
-    tab: raw.tab === "active" ? "active" : "installed",
+    tab: raw.tab === "active" || raw.tab === "hidden" ? raw.tab : "installed",
     pack: text(raw.pack, "all"),
     sort: "recent",
   };

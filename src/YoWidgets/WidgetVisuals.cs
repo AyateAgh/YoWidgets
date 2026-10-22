@@ -75,9 +75,9 @@ internal static class WidgetVisuals
         button.Padding = new Thickness(0);
         var text = Label(label, 11, true);
         text.Margin = new Thickness(10, 0, 10, 0);
-        button.Content = text;
         var symbol = label switch { "Wi-Fi"=>"wifi", "DND"=>"bell", "Sound / mute"=>"volume", "Refresh"=>"refresh-cw", "Choose photo"=>"photo", _=>null };
         if(symbol!=null) { var row=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(9,0,9,0) }; var icon=Icon(symbol,14); icon.Margin=new Thickness(0,0,6,0); text.Margin=new Thickness(0); row.Children.Add(icon); row.Children.Add(text); button.Content=row; }
+        else button.Content=text;
         return button;
     }
 }

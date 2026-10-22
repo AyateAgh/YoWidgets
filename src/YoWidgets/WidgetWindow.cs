@@ -166,6 +166,7 @@ internal sealed class WidgetWindow : Window
         var kind = state.Kind;
         var w = small ? 168 : 358;
         var h = large ? 354 : 168;
+        if(kind=="focus")w=small?288:358;
         if (kind is "music" or "quick" or "assistant" or "notifications")
         {
             w = kind == "music" && small ? 268 : 358;

@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Bell,
+  Bluetooth,
   CalendarDays,
   CloudSun,
   Mic,
+  Moon,
   Pause,
   Play,
   Plus,
@@ -183,11 +185,8 @@ export function WidgetPreview({
           )}
           {kind === "focus" && (
             <>
-              <small>TIME TO FOCUS</small>
-              <b className="focus-time">25:00</b>
-              <div className="focus-action">
-                <Play size={12} fill="currentColor" /> Start focus
-              </div>
+              <div className="focus-preview-heading"><span className="focus-moon"><Moon size={20}/></span><span><strong>Focus</strong><small>Notifications & calls</small></span><b className="focus-time">25:00</b></div>
+              <div className="focus-preview-footer"><span>25 min</span><i><Play size={14}/></i></div>
             </>
           )}
           {kind === "quick" && (
@@ -197,10 +196,10 @@ export function WidgetPreview({
                   <Wifi size={19} />
                 </span>
                 <span>
-                  <Volume2 size={19} />
+                  <Bluetooth size={19} />
                 </span>
                 <span>
-                  <Sun size={19} />
+                  <Volume2 size={19} />
                 </span>
               </div>
               <div className="sample-slider">

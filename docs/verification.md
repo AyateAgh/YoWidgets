@@ -1,4 +1,14 @@
-# YoWidgets 0.6.5 verification
+# YoWidgets 0.6.6 verification
+
+## Native widgets, Focus and Library, 2026-10-22
+
+The WPF parent-ownership error was reproduced in both action-pill construction and native widget creation tests, then fixed by assigning each label to only its final parent. Failed window creation now rolls back Add/Enable and cannot create an enabled/countable ghost. The actual packaged host created Photos, Focus, Controls and Notifications without that error; its desktop count changed 4 → 3 → 4 when Controls was hidden/restored.
+
+Final frontend checks passed 36/36 and native platform checks 27/27. They cover actual visible-window filtering, Hidden separation, pause/resume, failed construction rollback, Focus expiry/stop/restart/failed-start rollback, partial recovery, late sessions, ambiguous multi-instance recovery and Disable all. Owned install/removal checks passed 15/15. A full default local build passed the existing visual/voice/composer/media/control/document/compositor suites before the audio scope was refined; the final per-app audio integration was checked separately afterward.
+
+Native explicit checks set/read/restored Windows DND on the current Windows build. Owned silent PCM child processes verified per-app mute leaves a separate music session unchanged, new-session callbacks arrive, and original mute survives chat-app exit, restoration and relaunch. No user's saved API keys or communications accounts were used by these fixtures. Focus uses the Windows shell QuietHours compatibility contract; future OS compatibility is not guaranteed. Music players and browsers are excluded from call-app quieting, and shared browser/app audio cannot be separated into music versus calls.
+
+Actual widget screenshots verified the Focus duration popover, one Start/End action, Controls contrast/sliders, and the Notifications capability state. The current portable build has no Windows package identity; its Notifications widget appears and exposes Windows settings, but cannot read notification content until a packaged identity and permission are supplied. A signed packaged distribution is not delivered by this update. Hardware-device disconnect/crash variations beyond the included fixtures remain unmeasured.
 
 ## Native caption dragging, 2026-10-22
 

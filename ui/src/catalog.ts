@@ -35,8 +35,9 @@ export const belongs = (item: CatalogItem, widget: Widget) =>
     : widget.contentId
       ? widget.contentId === item.id
       : widget.pack === item.pack && widget.kind === item.kind;
+export const onDesktop = (widget: Widget) => widget.visible ?? widget.enabled;
 export const activeCount = (item: CatalogItem, widgets: Widget[]) =>
-  widgets.filter((w) => w.enabled && belongs(item, w)).length;
+  widgets.filter((w) => onDesktop(w) && belongs(item, w)).length;
 export function downloadBytes(
   item: CatalogItem,
   catalog: Catalog,

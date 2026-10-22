@@ -25,3 +25,4 @@ ui/*.tsbuildinfo
 .vs/
 catalog/packages/
 catalog/catalog.json
+**/focus-session.json*

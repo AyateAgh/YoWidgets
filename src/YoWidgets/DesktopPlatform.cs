@@ -30,12 +30,12 @@ internal sealed class DesktopPlatform:IDisposable
         catalog=JsonSerializer.Deserialize<CatalogDocument>(seed,CatalogJson.Options)!;CatalogRules.Validate(catalog);
         if(File.Exists(cache))try{var saved=JsonSerializer.Deserialize<CatalogDocument>(File.ReadAllText(cache),CatalogJson.Options)!;CatalogRules.Validate(saved);catalog=saved;}catch(Exception e)when(e is IOException or JsonException or InvalidDataException){catalogError="The saved catalog was reset.";}
         Content=new(Path.Combine(root,"Content"));if(migrate)Content.ImportLegacy(catalog);Content.EnsureRegistry();Content.UpgradeLegacyMetadata();WidgetPacks.LoadInstalled(Content);
-        http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(30)};http.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.6.5");
+        http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(30)};http.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.6.6");
         manager.Changed+=Publish;
     }
     internal object Snapshot()=>new {
         revision=Interlocked.Read(ref revision),catalog,catalogStatus,catalogError,feedUrl=FeedUrl,
-        installed=Content.Installed.Select(i=>new{i.Item,i.Packages,i.InstalledAt,needsRepair=!Content.IsReady(i.Item.Id)}),widgets=manager.Settings.Widgets.Select(w=>new{w.Id,w.ContentId,w.Kind,w.Pack,w.Size,w.Enabled,w.Monitor}),
+        installed=Content.Installed.Select(i=>new{i.Item,i.Packages,i.InstalledAt,needsRepair=!Content.IsReady(i.Item.Id)}),widgets=manager.Settings.Widgets.Select(w=>new{w.Id,w.ContentId,w.Kind,w.Pack,w.Size,w.Enabled,w.Monitor,visible=manager.IsOnDesktop(w.Id)}),
         jobs=jobs.Values.OrderByDescending(j=>j.StartedAt).Take(100).ToArray(),settings=preferences.Snapshot(),snoozed=manager.Snoozed,activeCount=manager.ActiveCount,
         requestedPage=RequestedPage,requestedProvider=RequestedProvider,notice=Notice,recovery=Content.RecoveryMessage
     };
@@ -120,8 +120,9 @@ internal sealed class DesktopPlatform:IDisposable
             case "content.clearFinished":foreach(var job in jobs.Values.Where(j=>j.Stage is "completed" or "failed" or "cancelled")){if(jobs.TryRemove(job.Id,out _))job.Cancellation.Dispose();}Publish();return new{accepted=true};
             case "content.visibility":{
                 var enabled=args.GetProperty("enabled").GetBoolean();var item=Content.ReadWidget(id);var instances=manager.Settings.Widgets.Where(w=>w.ContentId==id).ToArray();manager.Settings.LibraryResume??=[];
+                if(enabled&&manager.Snoozed)manager.SetSnooze(false);
                 if(!enabled){manager.Settings.LibraryResume[id]=instances.Where(w=>w.Enabled).Select(w=>w.Id).ToArray();foreach(var widget in instances.Where(w=>w.Enabled))manager.Disable(widget);}
-                else if(!instances.Any(w=>w.Enabled)){
+                else if(!instances.Any(w=>manager.IsOnDesktop(w.Id))){
                     if(instances.Length==0){if(manager.Settings.Widgets.Count>=24)throw new InvalidOperationException("Remove a widget instance first.");var handle=args.TryGetProperty("window",out var hwnd)?new IntPtr(hwnd.GetInt64()):IntPtr.Zero;var area=System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;manager.Add(item.Kind,item.Pack,new(area.X,area.Y,area.Width,area.Height),id,item.DefaultSize);}
                     else {var ids=manager.Settings.LibraryResume.GetValueOrDefault(id)??[];var restoring=instances.Where(w=>ids.Contains(w.Id)).ToArray();foreach(var widget in restoring.Length>0?restoring:[instances[0]])manager.Enable(widget);}
                 }
@@ -142,9 +143,10 @@ internal sealed class DesktopPlatform:IDisposable
                 var window=args.TryGetProperty("window",out var hwnd)?new IntPtr(hwnd.GetInt64()):IntPtr.Zero;var screen=window==IntPtr.Zero?System.Windows.Forms.Screen.PrimaryScreen!:System.Windows.Forms.Screen.FromHandle(window);
                 var work=screen.WorkingArea;manager.Add(item.Kind,item.Pack,new(work.X,work.Y,work.Width,work.Height),id,item.DefaultSize);InterfaceAudio.Play("place",manager);Publish();return new{message="Added to desktop"};
             }
+            case "widget.locate":manager.Locate(id);return new{accepted=true};
             case "widget.disable":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");manager.Disable(widget);Publish();return new{accepted=true};}
             case "widget.remove":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");manager.Disable(widget);manager.Settings.Widgets.Remove(widget);manager.Save();Publish();return new{accepted=true};}
-            case "widget.enable":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");if(!Content.IsReady(widget.ContentId))throw new InvalidOperationException("Install or repair this widget first.");manager.Enable(widget);Publish();return new{accepted=true};}
+            case "widget.enable":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");if(!Content.IsReady(widget.ContentId))throw new InvalidOperationException("Install or repair this widget first.");if(manager.Snoozed)manager.SetSnooze(false);manager.Enable(widget);Publish();return new{accepted=true};}
             case "widget.size":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");var size=PlatformSettings.Text(args,"size");if(size is not("S" or "M" or "L"))throw new InvalidOperationException("Choose S, M or L.");widget.Size=size;manager.ApplyAppearance();manager.Save();Publish();return new{accepted=true};}
             case "app.snooze":manager.SetSnooze(!manager.Snoozed);Publish();return new{accepted=true};
             case "app.disableAll":manager.DisableAll();Publish();return new{accepted=true};

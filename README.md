@@ -1,4 +1,4 @@
-# YoWidgets 0.6.5
+# YoWidgets 0.6.6
 
 The management window fits the Windows work area, keeps Settings reachable on short screens, remembers its size/state, and animates maximize/restore using a temporary local UI image while the browser lays out once. Reopening reveals the populated interface. Layout adapts down to compact windows; reduced motion is respected.
 
@@ -160,3 +160,5 @@ Live voice now supports actual actions: ask it to open a website and read curren
 
 
 Desktop control includes left/right/middle clicks and bounded physical key holds (letters, digits, F1-F12, navigation and Ctrl/Shift), with release on cancellation. Actual Dota 2 gameplay and real-time game performance are not verified.
+
+Focus now offers custom duration, a single Start/End control, Windows DND and selected communication-app quieting while music players and browsers keep playing. Desktop presence uses actual native windows, with separate On desktop/Hidden lists and Locate. Photos/Controls/Notifications creation no longer reparents an already-owned WPF label. The portable Notifications widget needs a packaged Windows identity and notification permission to read actual entries; this build exposes that limitation explicitly.
