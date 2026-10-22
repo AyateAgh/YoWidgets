@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "YoWidgets Assistant Bridge",
+  "version": "0.6.0",
+  "minimum_chrome_version": "116",
+  "description": "Attach browser tabs to YoWidgets and approve browser agent actions.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvyKGtrilA11Dd9eL76z4hr8w9HBdP+2Zfp4AtsFWkpE1t2zZZhdxJ70WsN1pQpLPWc0STq7PzQ8L+MLpzPtPzY0dtNuFRs52/QHYMJVR/8sKo7V+zbKgjQoGQyl4cG9j0QrPRUvqtQfjxgdMnK4lsA94HVnCt0ie6GKb9Z0WIa/U3CRd5ot4gyrQJuaOM1JKtNldwnAcsSv6vcgL5RX8aQUpNTfM5kOIw1CyYm9D+0KVMwqQ7KNGwOzQdix4A7ThmPpRbiSUcCzDhpQPHI5PMVa3G7WPa5EPm6xvbntcVKDqppIoaumD9uHKHAqZqDz3NeLpRx0CoHjCGnp2uzFfTQIDAQAB",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

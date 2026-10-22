@@ -4,12 +4,12 @@ namespace YoWidgets;
 internal sealed class WeatherService
 {
     public record Hour(string Time, double Temperature);
-    sealed record Cache(string City, string Condition, double Temperature, double High, double Low, List<Hour> Hours, List<Hour> Days, DateTimeOffset Updated, string Source = "Open-Meteo");
+    sealed record Cache(string City, string Condition, double Temperature, double High, double Low, List<Hour> Hours, List<Hour> Days, DateTimeOffset Updated, string Source = "Open-Meteo", string Locale = "");
     static readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
     static string CachePath => Path.Combine(App.DataRoot, "weather-cache.json");
     int generation;
-    public string City { get; private set; } = "Выберите город";
-    public string Condition { get; private set; } = "Нет данных";
+    public string City { get; private set; } = "Choose a city";
+    public string Condition { get; private set; } = "No data";
     public double? Temperature
     {
         get; private set;
@@ -44,7 +44,7 @@ internal sealed class WeatherService
             if (!File.Exists(CachePath) || new FileInfo(CachePath).Length > 256000)
                 return;
             var c = JsonSerializer.Deserialize<Cache>(File.ReadAllText(CachePath));
-            if (c == null || !double.IsFinite(c.Temperature))
+            if (c == null || c.Locale != "en-US" || !double.IsFinite(c.Temperature))
                 return;
             City = c.City;
             Condition = c.Condition;
@@ -64,7 +64,7 @@ internal sealed class WeatherService
         {
             if (Temperature == null || Updated == null)
                 return;
-            File.WriteAllText(CachePath + ".tmp", JsonSerializer.Serialize(new Cache(City, Condition, Temperature.Value, High, Low, Hours, Days, Updated.Value, Source)));
+            File.WriteAllText(CachePath + ".tmp", JsonSerializer.Serialize(new Cache(City, Condition, Temperature.Value, High, Low, Hours, Days, Updated.Value, Source, "en-US")));
             File.Move(CachePath + ".tmp", CachePath, true);
         }
         catch (Exception e) { App.Log("weather-cache", e); }
@@ -82,9 +82,9 @@ internal sealed class WeatherService
         Changed?.Invoke();
         try
         {
-            using var geo = JsonDocument.Parse(await http.GetStringAsync("https://geocoding-api.open-meteo.com/v1/search?count=1&language=ru&name=" + Uri.EscapeDataString(city), ct));
+            using var geo = JsonDocument.Parse(await http.GetStringAsync("https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&name=" + Uri.EscapeDataString(city), ct));
             if (!geo.RootElement.TryGetProperty("results", out var list) || list.GetArrayLength() == 0)
-                throw new InvalidOperationException("Город не найден. Уточните название.");
+                throw new InvalidOperationException("City not found. Try a more specific name.");
             var p = list[0];
             var lat = p.GetProperty("latitude").GetRawText();
             var lon = p.GetProperty("longitude").GetRawText();
@@ -119,7 +119,7 @@ internal sealed class WeatherService
             {
                 try
                 {
-                    var raw = await http.GetStringAsync("https://wttr.in/" + Uri.EscapeDataString(city) + "?format=j1&lang=ru", ct);
+                    var raw = await http.GetStringAsync("https://wttr.in/" + Uri.EscapeDataString(city) + "?format=j1&lang=en", ct);
                     var result = WeatherFallback.Parse(raw);
                     if (request != generation || ct.IsCancellationRequested)
                         return;
@@ -130,31 +130,31 @@ internal sealed class WeatherService
                     Low = result.Low;
                     Hours = result.Hours.Select(h => new Hour(h.Time, h.Temperature)).ToList();
                     Days = result.Days.Select(h => new Hour(h.Time, h.Temperature)).ToList();
-                    Source = "wttr.in · резерв";
+                    Source = "wttr.in · fallback";
                     Updated = DateTimeOffset.Now;
                     SaveCache();
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
-                catch (Exception fallbackError) { if (request == generation) Error = "Нет связи с погодой. Сохранённые данные могут устареть."; App.Log("weather-fallback", fallbackError); }
+                catch (Exception fallbackError) { if (request == generation) Error = "Weather is offline. Saved data may be out of date."; App.Log("weather-fallback", fallbackError); }
             }
             else
-                Error = e is InvalidOperationException ? e.Message : "Не удалось прочитать прогноз. Повторите позже.";
+                Error = e is InvalidOperationException ? e.Message : "Could not read the forecast. Try again later.";
         }
         finally { if (request == generation) { Loading = false; Changed?.Invoke(); } }
     }
     static string Describe(int c) => c switch
     {
-        0 => "Ясно",
-        1 => "Преимущественно ясно",
-        2 => "Переменная облачность",
-        3 => "Облачно",
-        45 or 48 => "Туман",
-        >= 51 and <= 57 => "Морось",
-        >= 61 and <= 67 => "Дождь",
-        >= 71 and <= 77 => "Снег",
-        >= 80 and <= 82 => "Ливень",
-        >= 85 and <= 86 => "Снегопад",
-        >= 95 => "Гроза",
-        _ => "Погода"
+        0 => "Clear",
+        1 => "Mostly clear",
+        2 => "Partly cloudy",
+        3 => "Cloudy",
+        45 or 48 => "Fog",
+        >= 51 and <= 57 => "Drizzle",
+        >= 61 and <= 67 => "Rain",
+        >= 71 and <= 77 => "Snow",
+        >= 80 and <= 82 => "Showers",
+        >= 85 and <= 86 => "Snow showers",
+        >= 95 => "Thunderstorm",
+        _ => "Weather"
     };
 }

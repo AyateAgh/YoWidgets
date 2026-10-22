@@ -4,9 +4,22 @@ namespace YoWidgets;
 
 internal sealed class WidgetWindow : Window
 {
-    readonly WidgetManager manager; readonly WidgetState state; readonly GlassSurface glass = new(); readonly Grid surface = new() { Background = null }; readonly bool checker; int expansionVersion; bool closing; bool loaded; bool moving; bool animating; ImageBrush? movingBrush; RectD movingArea = new(0, 0, 1, 1); long moveFrames; RectD? paintedBounds;
-    Brush? motionSource;
-    RectD? motionSourceArea;
+    readonly WidgetManager manager; readonly WidgetState state; readonly GlassSurface glass = new(); readonly Grid surface = new() { Background = null }; readonly bool checker; int expansionVersion; bool closing; bool loaded; bool moving; bool animating; long moveFrames;
+    LiveBackdrop? liveBackdrop;
+    bool assistantReading;
+    readonly Border assistantDrop = new() { IsHitTestVisible=false,CornerRadius=new CornerRadius(24),BorderThickness=new Thickness(2),BorderBrush=Brushes.Transparent,Margin=new Thickness(1) };
+    internal void AttachAssistantGlow(VoiceGlow glow) { surface.Children.Insert(1,glow); surface.Children.Add(assistantDrop); glow.SizeChanged+=(_,_)=>assistantDrop.CornerRadius=new CornerRadius(Math.Min(32,glow.ActualHeight/4)); }
+    internal void SetAssistantDrop(bool active) { assistantDrop.BorderBrush=active ? Ui.Brush("Accent") : Brushes.Transparent; }
+    string appliedPackage = "";
+    bool? darkInk;
+    RectD? assistantAnchor;
+    double assistantContentHeight = AssistantLayout.CompactHeight;
+    double assistantTargetTop;
+    double assistantTargetHeight;
+    public bool AssistantExpandsUp { get; private set; }
+    public event Action? AssistantPlacementChanged;
+    readonly SolidColorBrush ink = new(Colors.White);
+    readonly System.Windows.Media.Effects.DropShadowEffect inkShadow = new() { Color = Colors.Black, BlurRadius = 3, ShadowDepth = 1, Opacity = .42, RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance };
     public event Action? ExpansionChanged;
     public bool Expanded
     {
@@ -17,11 +30,15 @@ internal sealed class WidgetWindow : Window
         manager = m;
         state = s;
         checker = test;
-        Title = "YoWidgets · " + s.Kind;
+        Resources["WidgetInk"] = ink;
+        SetAssistantInk(false);
+        Title = "YoWidgets · " + WidgetPacks.Get(s.Pack).Name + " · " + s.Kind;
         WindowStyle = WindowStyle.None;
+        FontFamily = Ui.BodyFont;
+        FontWeight = FontWeights.Medium;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
-        ShowInTaskbar = false;
+        ShowInTaskbar = App.InspectWidgetWindows;
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.Manual;
         Topmost = m.Settings.Topmost;
@@ -32,19 +49,21 @@ internal sealed class WidgetWindow : Window
         surface.Margin = new Thickness(20);
         surface.Children.Add(glass);
         var content = WidgetContentFactory.Create(m, s, this);
-        content.Margin = new Thickness(18);
+        content.Margin = new Thickness(s.Kind == "assistant" ? 8 : 18);
+        content.Effect = inkShadow;
         surface.Children.Add(content);
         Content = surface;
         SetDimensions();
-        SourceInitialized += (_, _) => { Native.ToolWindow(this); var source = (HwndSource)PresentationSource.FromVisual(this); source.AddHook(Hook); };
-        Loaded += (_, _) => { loaded = true; Position(); RefreshGlass(); Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => TraceVisibility()); Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, PrewarmMove); };
-        IsVisibleChanged += (_, _) => { if (!IsVisible) { motionSource = null; motionSourceArea = null; } else if (loaded) Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, PrewarmMove); };
+        SourceInitialized += (_, _) => { if (!App.InspectWidgetWindows) Native.ToolWindow(this); var source = (HwndSource)PresentationSource.FromVisual(this); source.AddHook(Hook); };
+        Loaded += (_, _) => { loaded = true; Position(); RefreshGlass(); Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => TraceVisibility()); };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) { liveBackdrop?.Hide(); } else if (loaded) { liveBackdrop?.Sync(this); } };
+        StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) liveBackdrop?.Hide(); else liveBackdrop?.Sync(this); };
         LocationChanged += (_, _) => { if (moving || animating) RenderMove(null, EventArgs.Empty); else if (loaded) QueueGlassRefresh(); };
         SizeChanged += (_, _) => { if (animating) RenderMove(null, EventArgs.Empty); else if (loaded && !moving) QueueGlassRefresh(); };
         MouseMove += (_, e) => { if (!m.Snoozed && !moving) glass.Pointer(e.GetPosition(surface), surface.ActualWidth, surface.ActualHeight, true); };
         MouseLeave += (_, _) => glass.Pointer(new(.5, .5), 1, 1, false);
         MouseLeftButtonDown += (_, e) => { if (e.OriginalSource is System.Windows.Controls.Primitives.Thumb || IsInteractive(e.OriginalSource as DependencyObject)) return; e.Handled = true; MoveNative(); };
-        KeyDown += (_, e) => { var step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1; var b = Native.Bounds(this); var x = b.X; var y = b.Y; switch (e.Key) { case Key.Left: x -= step; break; case Key.Right: x += step; break; case Key.Up: y -= step; break; case Key.Down: y += step; break; case Key.Escape: App.CurrentApp.ShowShell(); return; default: return; } PlacePhysical(x, y); SavePosition(); e.Handled = true; };
+        KeyDown += (_, e) => { if(e.Handled||IsInteractive(Keyboard.FocusedElement as DependencyObject))return; var step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1; var b = Native.Bounds(this); var x = b.X; var y = b.Y; switch (e.Key) { case Key.Left: x -= step; break; case Key.Right: x += step; break; case Key.Up: y -= step; break; case Key.Down: y += step; break; case Key.Escape: e.Handled=true;return; default: return; } PlacePhysical(x, y); SavePosition(); e.Handled = true; };
         var menu = new ContextMenu();
         void Item(string label, Action a)
         {
@@ -52,28 +71,41 @@ internal sealed class WidgetWindow : Window
             i.Click += (_, _) => a();
             menu.Items.Add(i);
         }
-        Item("Настроить виджеты", App.CurrentApp.ShowShell);
+        Item("Manage widgets", App.CurrentApp.ShowShell);
+        if (content is AssistantView assistant) Item("Show conversation", assistant.Reveal);
         foreach (var size in new[] { "S", "M", "L" })
         {
             var z = size;
-            Item("Размер " + z, () => { state.Size = z; SetDimensions(); manager.Save(); });
+            Item("Size " + z, () => { state.Size = z; SetDimensions(); manager.Save(); });
         }
-        Item("Вернуть в видимую область", Position);
-        Item("Выключить виджет", () => { if (checker) CloseOwned(); else manager.Disable(state); });
+        Item("Move into view", Position);
+        Item("Disable widget", () => { if (checker) CloseOwned(); else manager.Disable(state); });
         surface.ContextMenu = menu;
         Closing += (_, e) => { if (!closing && !checker) { e.Cancel = true; manager.Disable(state); } };
     }
     bool refreshQueued;
-    void PrewarmMove()
+    public void AdaptInk(double luminance)
     {
-        if (closing || !IsVisible || manager.Snoozed) return;
-        var screen = System.Windows.Forms.Screen.FromHandle(Native.Handle(this)).Bounds;
-        var area = new RectD(screen.X,screen.Y,screen.Width,screen.Height);
-        if (motionSource == null || motionSourceArea != area)
-        {
-            motionSource = manager.Wallpaper.GetBrush(area,checker,moving:true);
-            motionSourceArea = area;
-        }
+        if (closing) return;
+        var next = ContrastPolicy.DarkInk(luminance, darkInk);
+        if (next == darkInk) return;
+        darkInk = next;
+        SetAssistantInk(next);
+        var color = next ? Color.FromRgb(25, 32, 43) : Colors.White;
+        if (SystemParameters.ClientAreaAnimation)
+            ink.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(color, TimeSpan.FromMilliseconds(220)));
+        else { ink.BeginAnimation(SolidColorBrush.ColorProperty, null); ink.Color = color; }
+        Resources["WidgetAccent"] = new SolidColorBrush(next ? Color.FromRgb(172, 42, 55) : Color.FromRgb(255, 153, 147));
+        inkShadow.Opacity = next ? .06 : .42;
+    }
+    void SetAssistantInk(bool dark)
+    {
+        Resources["AssistantInstructionInk"]=new SolidColorBrush(dark?Color.FromRgb(18,76,168):Color.FromRgb(120,173,255));
+        Resources["AssistantButtonInk"] = dark ? Brushes.White : new SolidColorBrush(Color.FromRgb(20,25,32));
+        Resources["AssistantCodeInk"] = new SolidColorBrush(dark ? Color.FromRgb(20,73,134) : Color.FromRgb(190,219,255));
+        Resources["AssistantInset"] = new SolidColorBrush(dark ? Color.FromArgb(38,255,255,255) : Color.FromArgb(42,0,0,0));
+        Resources["AssistantBubble"] = new SolidColorBrush(dark ? Color.FromArgb(65,255,255,255) : Color.FromArgb(55,255,255,255));
+        Resources["AssistantLine"] = new SolidColorBrush(dark ? Color.FromArgb(38,0,0,0) : Color.FromArgb(38,255,255,255));
     }
     void QueueGlassRefresh()
     {
@@ -84,78 +116,44 @@ internal sealed class WidgetWindow : Window
     }
     void PrepareMotion()
     {
-        var screen = System.Windows.Forms.Screen.FromHandle(Native.Handle(this)).Bounds;
-        movingArea = new(screen.X, screen.Y, screen.Width, screen.Height);
-        var prepared = motionSourceArea == movingArea && motionSource != null ? motionSource : manager.Wallpaper.GetBrush(movingArea, checker, moving: true);
-        motionSource = prepared;
-        motionSourceArea = movingArea;
-        movingBrush = prepared is ImageBrush image ? image.CloneCurrentValue() : null;
-        paintedBounds = null;
-        if (movingBrush != null)
-        {
-            var view = BackdropViewport.For(Native.Bounds(this), movingArea);
-            movingBrush.Viewbox = new Rect(view.X, view.Y, view.Width, view.Height);
-            glass.Update(movingBrush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
-        }
+        glass.Motion(true);
+        liveBackdrop?.Interaction(true);
     }
     void MoveNative()
     {
-        if (moving || manager.Snoozed || Mouse.LeftButton != MouseButtonState.Pressed)
-            return;
+        if (moving || manager.Snoozed || Mouse.LeftButton != MouseButtonState.Pressed) return;
         if (animating) FinishExpansion();
-        var started = System.Diagnostics.Stopwatch.StartNew();
         PrepareMotion();
         moveFrames = 0;
-        paintedBounds = null;
         moving = true;
-        if (movingBrush != null)
-            glass.Update(movingBrush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
         CompositionTarget.Rendering += RenderMove;
-        var preparedMs = started.ElapsedMilliseconds;
-        var decodesBeforeLoop = manager.Wallpaper.DecodeCount;
         var cpu = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime;
         var loop = System.Diagnostics.Stopwatch.StartNew();
-        try
-        {
-            DragMove();
-        }
-        catch (InvalidOperationException) { /* Mouse may have been released while preparing the first frame. */ }
+        try { DragMove(); }
+        catch (InvalidOperationException) { /* The pointer may already be released. */ }
         finally
         {
             CompositionTarget.Rendering -= RenderMove;
             moving = false;
-            movingBrush = null;
-            paintedBounds = null;
-            if (!closing)
-            {
-                SavePosition();
-                QueueGlassRefresh();
-            }
-            manager.Wallpaper.ClearCache();
+            glass.Motion(false);
+            liveBackdrop?.Interaction(false);
+            if (!closing) { if (state.Kind == "assistant") assistantAnchor = null; SavePosition(); QueueGlassRefresh(); }
             var used = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime - cpu;
-            App.Trace("drag", $"native; prepareMs={preparedMs}; loopMs={loop.ElapsedMilliseconds}; frames={moveFrames}; decodesDuringLoop={manager.Wallpaper.DecodeCount-decodesBeforeLoop}; cpuMs={used.TotalMilliseconds:F1}");
+            App.Trace("drag", $"native; pack={state.Pack}; loopMs={loop.ElapsedMilliseconds}; frames={moveFrames}; wallpaperDecodes=0; cpuMs={used.TotalMilliseconds:F1}");
         }
     }
     void RenderMove(object? sender, EventArgs e)
     {
-        if ((!moving && !animating) || movingBrush == null)
-            return;
-        var bounds = Native.Bounds(this);
-        if (bounds == paintedBounds)
-            return;
-        paintedBounds = bounds;
-        var view = BackdropViewport.For(bounds, movingArea);
-        movingBrush.Viewbox = new Rect(view.X, view.Y, view.Width, view.Height);
-        movingBrush.ViewboxUnits = BrushMappingMode.RelativeToBoundingBox;
-        if (animating)
-            glass.Update(movingBrush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
+        if ((!moving && !animating) || closing) return;
+        liveBackdrop?.Sync(this);
+        if (animating) glass.Update(Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), state.Pack);
         moveFrames++;
     }
     static bool IsInteractive(DependencyObject? p)
     {
         while (p != null)
         {
-            if (p is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.RangeBase or TextBox or PasswordBox)
+            if (p is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.RangeBase or TextBox or PasswordBox or RichTextBox or ComboBox or ScrollViewer)
                 return true;
             p = p is Visual ? VisualTreeHelper.GetParent(p) : p is FrameworkContentElement content ? content.Parent : LogicalTreeHelper.GetParent(p);
         }
@@ -179,6 +177,40 @@ internal sealed class WidgetWindow : Window
         }
         Width = w + 40;
         Height = h + 40;
+        if (kind == "assistant")
+        {
+            Width = (small ? 360 : large ? 480 : 400) + 40;
+            Height = assistantContentHeight + 40;
+        }
+    }
+    internal void SetAssistantReadability(bool expanded) { assistantReading = expanded; liveBackdrop?.Readability(expanded); }
+    public void ResizeAssistant(double contentHeight)
+    {
+        if (closing) return;
+        var changed = Math.Abs(assistantContentHeight - contentHeight) > .5;
+        assistantContentHeight = contentHeight;
+        if (!loaded) return;
+        if (!changed) return;
+        var bounds = Native.Bounds(this);
+        var dpi = Math.Max(.5, Native.GetDpiForWindow(Native.Handle(this)) / 96d);
+        var compact = Math.Min(bounds.Height,(AssistantLayout.CompactHeight + 40) * dpi);
+        assistantAnchor ??= new RectD(bounds.X, AssistantExpandsUp ? bounds.Y + bounds.Height - compact : bounds.Y, bounds.Width, compact);
+        var area = System.Windows.Forms.Screen.FromRectangle(new System.Drawing.Rectangle((int)bounds.X,(int)bounds.Y,(int)bounds.Width,(int)bounds.Height)).WorkingArea;
+        var plan = AssistantLayout.Expand(assistantAnchor, (contentHeight + 40) * dpi, new(area.X,area.Y,area.Width,area.Height));
+        AssistantExpandsUp = plan.Up;
+        assistantTargetHeight = plan.Bounds.Height / dpi; assistantTargetTop = plan.Bounds.Y / dpi;
+        AssistantPlacementChanged?.Invoke();
+        var version = ++expansionVersion;
+        if (SystemParameters.ClientAreaAnimation && !manager.Snoozed && IsVisible)
+        {
+            if (!animating) { PrepareMotion(); animating = true; CompositionTarget.Rendering += RenderMove; }
+            var duration = TimeSpan.FromMilliseconds(260);
+            var height = new DoubleAnimation(assistantTargetHeight,duration) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } };
+            height.Completed += (_,_) => { if (version == expansionVersion && !closing) FinishExpansion(); };
+            BeginAnimation(HeightProperty,height);
+            BeginAnimation(TopProperty,new DoubleAnimation(assistantTargetTop,duration) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } });
+        }
+        else FinishExpansion();
     }
     void Position()
     {
@@ -208,16 +240,24 @@ internal sealed class WidgetWindow : Window
         Position();
         TraceVisibility();
     }
+    internal void CenterInWorkArea(RectD area,int index)
+    {
+        Native.SetWindowPos(Native.Handle(this),IntPtr.Zero,(int)(area.X+24),(int)(area.Y+24),0,0,0x15);
+        var dpi=Math.Max(.5,Native.GetDpiForWindow(Native.Handle(this))/96d);
+        var center=Placement.Center(Width*dpi,Height*dpi,area);var offset=(index%7)*22*dpi;
+        var point=Placement.Clamp(center.X+offset,center.Y+offset,Width*dpi,Height*dpi,area);state.X=point.X;state.Y=point.Y;PlacePhysical(point.X,point.Y);
+    }
     void TraceVisibility()
     {
         var b = Native.Bounds(this);
-        App.Trace("widget-visible", $"{state.Kind}; HWND={Native.Handle(this)}; visible={IsVisible}; parent={Native.GetParent(Native.Handle(this))}; x={b.X}; y={b.Y}; width={b.Width}; height={b.Height}; topmost={Topmost}; transparent={AllowsTransparency}; glass={glass.Mode}");
+        App.Trace("widget-visible", $"{state.Kind}; HWND={Native.Handle(this)}; visible={IsVisible}; parent={Native.GetParent(Native.Handle(this))}; x={b.X}; y={b.Y}; width={b.Width}; height={b.Height}; topmost={Topmost}; transparent={AllowsTransparency}; pack={state.Pack}; glass={glass.Mode}");
     }
     void SavePosition()
     {
         var b = Native.Bounds(this);
         state.X = b.X;
         state.Y = b.Y;
+        if (state.Kind == "assistant" && AssistantExpandsUp) state.Y = b.Y + b.Height - (AssistantLayout.CompactHeight + 40) * Math.Max(.5,Native.GetDpiForWindow(Native.Handle(this))/96d);
         manager.Save();
     }
     public void UpdateHost()
@@ -231,12 +271,33 @@ internal sealed class WidgetWindow : Window
     }
     public void RefreshGlass()
     {
-        if (!loaded || moving || animating || closing)
-            return;
-        var b = Native.Bounds(this);
-        var brush = manager.Wallpaper.GetBrush(b, checker);
-        glass.Update(brush, Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), manager.Settings);
+        if (!loaded || moving || animating || closing) return;
+        ApplyMaterial();
+        glass.Update(Math.Max(1, ActualWidth - 40), Math.Max(1, ActualHeight - 40), state.Pack);
         Topmost = manager.Settings.Topmost;
+        liveBackdrop?.Sync(this);
+    }
+    public void InvalidateBackground()
+    {
+        if ((liveBackdrop == null && LiveBackdrop.Supported) || (liveBackdrop != null && !LiveBackdrop.Supported)) appliedPackage = "";
+        if (!moving && !animating) Position();
+        RefreshGlass();
+    }
+    void ApplyMaterial()
+    {
+        var requested = WidgetPacks.Get(state.Pack).Id;
+        if (appliedPackage == requested) return;
+        appliedPackage = requested;
+        liveBackdrop?.Dispose();
+        liveBackdrop = null;
+        if (LiveBackdrop.Supported)
+        {
+            try { liveBackdrop = new LiveBackdrop(requested); liveBackdrop.Readability(assistantReading); }
+            catch (Exception e) { App.Log("live-backdrop", e); }
+        }
+        if (liveBackdrop == null)
+            manager.DesktopStatus = "Live blur is unavailable. Widgets use a transparent tint; no wallpaper image is substituted.";
+        App.Trace("material", $"pack={requested}; liveBackdrop={liveBackdrop != null}; wallpaperSampling=False");
     }
     public void ToggleExpanded()
     {
@@ -253,7 +314,7 @@ internal sealed class WidgetWindow : Window
                 CompositionTarget.Rendering += RenderMove;
             }
             var anim = new DoubleAnimation(target, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } };
-            anim.Completed += (_, _) => { if (version == expansionVersion) FinishExpansion(); };
+            anim.Completed += (_, _) => { if (version == expansionVersion && !closing) FinishExpansion(); };
             BeginAnimation(HeightProperty, anim);
         }
         else
@@ -265,26 +326,33 @@ internal sealed class WidgetWindow : Window
     {
         ++expansionVersion;
         BeginAnimation(HeightProperty, null);
-        Height = (Expanded ? 410 : 184) + 40;
+        if (state.Kind == "assistant") { BeginAnimation(TopProperty,null); Height = assistantTargetHeight; Top = assistantTargetTop; if (assistantContentHeight == AssistantLayout.CompactHeight) assistantAnchor = null; }
+        else Height = (Expanded ? 410 : 184) + 40;
         animating = false;
+        glass.Motion(false);
         CompositionTarget.Rendering -= RenderMove;
-        movingBrush = null;
-        paintedBounds = null;
-        Position();
+        liveBackdrop?.Interaction(false);
+        if (state.Kind != "assistant") Position();
         QueueGlassRefresh();
     }
     IntPtr Hook(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
     {
+        if (msg is 0x0047 or 0x0006 && !closing) liveBackdrop?.Sync(this);
+        if (msg == 0x0018 && w == IntPtr.Zero) liveBackdrop?.Hide();
         if (msg == 0x02E0)
             Dispatcher.BeginInvoke(() => { if (!moving) { Position(); QueueGlassRefresh(); } });
-        if (msg == 0x007E || msg == 0x001A)
-            Dispatcher.BeginInvoke(() => { motionSource = null; motionSourceArea = null; Position(); RefreshGlass(); Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, PrewarmMove); });
+        if (msg is 0x007E or 0x001A or 0x031E or 0x031A)
+            Dispatcher.BeginInvoke(() => { if (!closing) InvalidateBackground(); });
         return IntPtr.Zero;
     }
     public void CloseOwned()
     {
         closing = true;
-        motionSource = null;
+        ++expansionVersion;
+        BeginAnimation(HeightProperty, null);
+        BeginAnimation(TopProperty, null);
+        liveBackdrop?.Dispose();
+        liveBackdrop = null;
         CompositionTarget.Rendering -= RenderMove;
         try
         {

@@ -21,7 +21,7 @@ public static class WeatherFallback
                 throw new InvalidDataException("Invalid temperature");
             return value;
         }
-        var condition = current.TryGetProperty("lang_ru", out var ru) ? ru[0].GetProperty("value").GetString() : current.GetProperty("weatherDesc")[0].GetProperty("value").GetString();
+        var condition = current.GetProperty("weatherDesc")[0].GetProperty("value").GetString();
         var observed = current.TryGetProperty("localObsDateTime", out var observedText) && DateTime.TryParse(observedText.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var localTime) ? localTime : DateTime.MinValue;
         var hours = days.EnumerateArray().SelectMany(d =>
         {
@@ -32,7 +32,7 @@ public static class WeatherFallback
                 return (At: date.AddHours(hour), Temperature: Number(h, "tempC"));
             });
         }).Where(h => h.At >= observed).Take(4).Select(h => new ForecastPoint(h.At.ToString("HH:mm"), h.Temperature)).ToList();
-        var forecast = days.EnumerateArray().Take(4).Select(d => new ForecastPoint(DateTime.Parse(d.GetProperty("date").GetString()!, CultureInfo.InvariantCulture).ToString("ddd", CultureInfo.GetCultureInfo("ru-RU")), Number(d, "maxtempC"))).ToList();
-        return new(Number(current, "temp_C"), condition ?? "Погода", Number(day, "maxtempC"), Number(day, "mintempC"), hours, forecast);
+        var forecast = days.EnumerateArray().Take(4).Select(d => new ForecastPoint(DateTime.Parse(d.GetProperty("date").GetString()!, CultureInfo.InvariantCulture).ToString("ddd", CultureInfo.GetCultureInfo("en-US")), Number(d, "maxtempC"))).ToList();
+        return new(Number(current, "temp_C"), condition ?? "Weather", Number(day, "maxtempC"), Number(day, "mintempC"), hours, forecast);
     }
 }

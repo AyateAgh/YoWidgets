@@ -2,10 +2,12 @@ namespace YoWidgets;
 
 internal static class Ui
 {
+    public static readonly FontFamily BodyFont = new("Segoe UI Variable Text, Segoe UI");
+    public static readonly FontFamily DisplayFont = new("Segoe UI Variable Display, Segoe UI");
     public static Brush Brush(string key) => (Brush)System.Windows.Application.Current.Resources[key];
     public static TextBlock Text(string value, double size = 14, string role = "Text", FontWeight? weight = null)
     {
-        var t = new TextBlock { Text = value, FontSize = size, FontWeight = weight ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        var t = new TextBlock { Text = value, FontFamily = size >= 24 ? DisplayFont : BodyFont, FontSize = size, FontWeight = weight ?? FontWeights.Medium, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
         t.SetResourceReference(TextBlock.ForegroundProperty, role);
         return t;
     }
@@ -13,6 +15,9 @@ internal static class Ui
     {
         var b = new Button { Content = label, Padding = new Thickness(16, 10, 16, 10), Margin = new Thickness(0, 0, 8, 0), MinHeight = 38, Cursor = Cursors.Hand };
         b.SetResourceReference(FrameworkElement.StyleProperty, primary ? "PrimaryButton" : "QuietButton");
+        var symbol = label switch { "Snooze"=>"moon", "Disable all" or "Disable this pack"=>"power", "All packs"=>"chevron-left", "Add another"=>"plus", "Center widgets on this screen"=>"layout-dashboard", "Save & refresh"=>"refresh-cw", "Request access"=>"bell", "Remove saved key"=>"trash", "Check connection"=>"sparkles", "Quit YoWidgets"=>"power", _=>null };
+        if(symbol!=null) { var row=new StackPanel { Orientation=Orientation.Horizontal }; var icon=WidgetVisuals.Icon(symbol,16,primary ? "PrimaryInk" : "Text"); icon.Margin=new Thickness(0,0,8,0); row.Children.Add(icon); var caption=Text(label,13,primary ? "PrimaryInk" : "Text"); row.Children.Add(caption); b.Content=row; }
+        System.Windows.Automation.AutomationProperties.SetName(b,label);
         b.Click += (_, _) => action();
         return b;
     }
@@ -46,12 +51,18 @@ internal static class Ui
     }
     public static void Theme()
     {
+        GlassTips.Install();
         var r = System.Windows.Application.Current.Resources;
+        r["PrimaryInk"] = new SolidColorBrush(Color.FromRgb(16,16,16));
         r.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/YoWidgets;component/Controls.xaml") });
-        foreach (var (key, color) in new Dictionary<string, string> { { "Background", "#11151D" }, { "Panel", "#1A202C" }, { "Field", "#131A25" }, { "Text", "#F4F7FB" }, { "Muted", "#B4C0D1" }, { "Accent", "#78ADFF" }, { "Line", "#303B4C" }, { "Hover", "#2B374A" }, { "Danger", "#FFB4AE" } })
+        foreach (var (key, color) in ThemeTokens.Colors)
             r[key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-        r[typeof(TextBlock)] = new Style(typeof(TextBlock)) { Setters = { new Setter(TextBlock.FontFamilyProperty, new FontFamily("Segoe UI Variable Text")) } };
+        r[typeof(TextBlock)] = new Style(typeof(TextBlock)) { Setters = { new Setter(TextBlock.FontFamilyProperty, BodyFont), new Setter(TextBlock.FontWeightProperty, FontWeights.Medium) } };
+        foreach (var type in new[] { typeof(Window), typeof(TextBox), typeof(PasswordBox), typeof(CheckBox), typeof(ComboBox), typeof(ContextMenu), typeof(MenuItem), typeof(ToolTip) })
+            r[type] = new Style(type, type == typeof(ComboBox) ? (Style)r["PremiumComboBox"] : null) { Setters = { new Setter(Control.FontFamilyProperty, BodyFont), new Setter(Control.FontWeightProperty, FontWeights.Medium) } };
         var quiet = new Style(typeof(Button));
+        quiet.Setters.Add(new Setter(Control.FontFamilyProperty, BodyFont));
+        quiet.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
         quiet.Setters.Add(new Setter(Control.ForegroundProperty, Brush("Text")));
         quiet.Setters.Add(new Setter(Control.BackgroundProperty, Brush("Panel")));
         quiet.Setters.Add(new Setter(Control.BorderBrushProperty, Brush("Line")));

@@ -13,7 +13,7 @@ internal static class WidgetCards
         var date = WidgetVisuals.Label("", 12, true, secondary: true);
         date.HorizontalAlignment = HorizontalAlignment.Center;
         var time = WidgetVisuals.Label("", state.Size == "S" ? 47 : 76);
-        time.FontFamily = new("Segoe UI Variable Display");
+        time.FontFamily = Ui.DisplayFont;
         time.FontWeight = FontWeights.Medium;
         time.HorizontalAlignment = HorizontalAlignment.Center;
         var digital = Ui.Stack(date, Ui.Gap(3), time);
@@ -49,10 +49,11 @@ internal static class WidgetCards
         });
         root.ColumnDefinitions.Add(new());
         var weekday = WidgetVisuals.Label("", 11, true);
-        weekday.Foreground = new SolidColorBrush(Color.FromRgb(255, 153, 147));
+        weekday.SetResourceReference(TextBlock.ForegroundProperty, "WidgetAccent");
         var day = WidgetVisuals.Label("", 48);
-        day.FontWeight = FontWeights.Light;
-        var today = Ui.Stack(weekday, Ui.Gap(2), day);
+        day.FontWeight = FontWeights.Medium;
+        var tasks=WidgetVisuals.Label("",10);tasks.TextTrimming=TextTrimming.CharacterEllipsis;tasks.MaxWidth=82;
+        var today = Ui.Stack(weekday, Ui.Gap(2), day,tasks);
         today.VerticalAlignment = VerticalAlignment.Center;
         root.Children.Add(today);
         var month = WidgetVisuals.Label("", 12, true);
@@ -62,18 +63,20 @@ internal static class WidgetCards
         right.VerticalAlignment = VerticalAlignment.Center;
         SetColumn(right, 1);
         root.Children.Add(right);
-        var rendered = DateTime.MinValue;
+        var rendered = DateTime.MinValue;string renderedTasks="";
         void Update()
         {
             var now = DateTime.Today;
-            if (rendered == now)
+            var activeTasks=manager.Settings.CalendarTasks.Where(t=>!t.Completed).OrderBy(t=>t.Due).ToArray();var signature=string.Join("|",activeTasks.Select(t=>t.Id+t.Title+t.Due.ToString("O")));
+            tasks.Text=activeTasks.Length==0?"":activeTasks.Length+" task"+(activeTasks.Length==1?"":"s");tasks.ToolTip=activeTasks.FirstOrDefault() is {} next?next.Due.ToLocalTime().ToString("MMM d, HH:mm")+" · "+next.Title:null;
+            if (rendered == now&&renderedTasks==signature)
                 return;
-            rendered = now;
+            rendered = now;renderedTasks=signature;
             weekday.Text = now.ToString("dddd");
             day.Text = now.Day.ToString();
             month.Text = now.ToString("MMMM yyyy");
             dates.Children.Clear();
-            foreach (var letter in new[] { "П", "В", "С", "Ч", "П", "С", "В" })
+            foreach (var letter in new[] { "M", "T", "W", "T", "F", "S", "S" })
             {
                 var label = WidgetVisuals.Label(letter, 9, secondary: true);
                 label.HorizontalAlignment = HorizontalAlignment.Center;
@@ -92,6 +95,7 @@ internal static class WidgetCards
                     cell.Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255));
                     number.Foreground = new SolidColorBrush(Color.FromRgb(25, 32, 43));
                 }
+                else if(activeTasks.Any(t=>t.Due.LocalDateTime.Date==new DateTime(now.Year,now.Month,i))){cell.Background=new SolidColorBrush(Color.FromArgb(70,154,111,245));cell.ToolTip=string.Join(" · ",activeTasks.Where(t=>t.Due.LocalDateTime.Date==new DateTime(now.Year,now.Month,i)).Select(t=>t.Title));}
                 dates.Children.Add(cell);
             }
         }
@@ -112,14 +116,14 @@ internal static class WidgetCards
             Height = GridLength.Auto
         });
         var header = new Grid();
-        var city = WidgetVisuals.Label("Погода", 13, true);
+        var city = WidgetVisuals.Label("Weather", 13, true);
         header.Children.Add(city);
         var icon = WidgetVisuals.Icon("sun", 22);
         icon.HorizontalAlignment = HorizontalAlignment.Right;
         header.Children.Add(icon);
         root.Children.Add(header);
         var degrees = WidgetVisuals.Label("—°", 52);
-        degrees.FontWeight = FontWeights.Light;
+        degrees.FontWeight = FontWeights.Medium;
         var condition = WidgetVisuals.Label("", 11, secondary: true);
         condition.HorizontalAlignment = HorizontalAlignment.Right;
         condition.VerticalAlignment = VerticalAlignment.Center;
@@ -143,8 +147,8 @@ internal static class WidgetCards
             var weather = manager.Data.Weather;
             city.Text = weather.Temperature == null ? manager.Settings.City : weather.City;
             degrees.Text = weather.Temperature is double value ? Math.Round(Temp(value)) + "°" : "—°";
-            condition.Text = weather.Loading ? "Обновление…" : weather.Error.Length > 0 ? "Нет связи · сохранённый прогноз" : weather.Condition + (weather.Temperature == null ? "" : $"\n↑{Temp(weather.High):0}°  ↓{Temp(weather.Low):0}°");
-            root.ToolTip = weather.Updated == null ? "Нет данных" : weather.Source + " · " + weather.Updated.Value.ToLocalTime().ToString("g");
+            condition.Text = weather.Loading ? "Updating…" : weather.Error.Length > 0 ? "Offline · saved forecast" : weather.Condition + (weather.Temperature == null ? "" : $"\n↑{Temp(weather.High):0}°  ↓{Temp(weather.Low):0}°");
+            root.ToolTip = weather.Updated == null ? "No data" : weather.Source + " · " + weather.Updated.Value.ToLocalTime().ToString("g");
             forecast.Visibility = state.Size == "S" ? Visibility.Collapsed : Visibility.Visible;
             if (root.ActualWidth < 160)
             {

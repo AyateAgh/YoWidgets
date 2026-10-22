@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "YoWidgets SoundCloud Bridge",
+  "version": "0.5.2",
+  "minimum_chrome_version": "116",
+  "description": "Connect the real SoundCloud Shuffle and Repeat controls to YoWidgets. No audio capture.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxoiaQoyB4hyhnYAPVGZl/31NBA2vPhSMCTOe2RJsg+Pc2gNqne96Q5xetxsO0A/h7KucKBPvhFwEDECKX1PzLfENHNGn+17uefobxjY+S049+PeWa5Yttp2AX4fg54FgdFULG+ITHxbj4BgFmNYWxsnvG+juozBqf38mkUzSCAaEqneirhHxkEo0WnJPFWvN8DhPGrqS2taAtJZFW/6snmHYbh/Oqsbr0MRnyWGNeu6nRHb1n6zgbwq2bI8/lVT2018g5dO31OljV4i9onHwhxN6yZedntffKiJ5FGebvNuKEwoZ9Gfqt+9/hQQZLrv5kMlfvune+Y+1ZOR08scZpQIDAQAB",
+  "permissions": [
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://soundcloud.com/*",
+    "http://127.0.0.1:37891/*"
+  ],
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://soundcloud.com/*"
+      ],
+      "js": [
+        "soundcloud.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

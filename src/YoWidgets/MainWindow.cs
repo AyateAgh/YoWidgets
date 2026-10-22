@@ -2,7 +2,12 @@ namespace YoWidgets;
 
 internal sealed class MainWindow : Window
 {
-    readonly WidgetManager manager; readonly ContentControl page = new(); readonly TextBlock status = Ui.Text("Настройки хранятся на этом компьютере", 11, "Muted"); readonly TextBlock active = Ui.Text("", 12, "Muted"); string tab = "widgets"; readonly List<Button> nav = [];
+    readonly WidgetManager manager; readonly ContentControl page = new(); readonly TextBlock status = Ui.Text("Settings are stored on this computer", 11, "Muted"); readonly TextBlock active = Ui.Text("", 12, "Muted"); string tab = "widgets"; readonly List<Button> nav = [];
+    string? selectedPack;
+    AssistantSettingsView? chatSettings;
+    internal void OpenChatSettings(string provider){Select("settings");chatSettings?.SelectProvider(provider);}
+    readonly TextBlock bridgeStatus = Ui.Text("", 11, "Muted");
+    void UpdateBridgeStatus() => bridgeStatus.Text = manager.Data.Media.BrowserBridgeStatus;
     public MainWindow(WidgetManager m)
     {
         manager = m;
@@ -17,7 +22,8 @@ internal sealed class MainWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = Ui.Brush("Background");
         Foreground = Ui.Brush("Text");
-        FontFamily = new("Segoe UI Variable Text");
+        FontFamily = Ui.BodyFont;
+        FontWeight = FontWeights.Medium;
         var shell = new Grid();
         shell.ColumnDefinitions.Add(new()
         {
@@ -38,13 +44,13 @@ internal sealed class MainWindow : Window
         logo.Margin = new Thickness(26, 30, 20, 36);
         sidebar.Children.Add(logo);
         var navigation = new StackPanel { Margin = new Thickness(14, 0, 14, 0) };
-        AddNav(navigation, "◫   Виджеты", "widgets");
-        AddNav(navigation, "◈   Оформление", "appearance");
-        AddNav(navigation, "⚙   Настройки", "settings");
-        AddNav(navigation, "↙   Отключение и удаление", "cleanup");
+        AddNav(navigation, "Widgets", "widgets");
+        AddNav(navigation, "Appearance", "appearance");
+        AddNav(navigation, "Settings", "settings");
+        AddNav(navigation, "Disable & uninstall", "cleanup");
         Grid.SetRow(navigation, 1);
         sidebar.Children.Add(navigation);
-        var footer = Ui.Stack(Ui.Text("●  Локально. Под вашим контролем.", 10, "Muted"), Ui.Gap(10), Ui.Text("YoWidgets  0.3 · Windows 11", 10, "Muted"));
+        var footer = Ui.Stack(Ui.Text("●  Local. Yours to control.", 10, "Muted"), Ui.Gap(10), Ui.Text("YoWidgets  0.5.2 · Windows 11", 10, "Muted"));
         footer.Margin = new Thickness(22);
         Grid.SetRow(footer, 2);
         sidebar.Children.Add(footer);
@@ -67,8 +73,8 @@ internal sealed class MainWindow : Window
         });
         top.Children.Add(active);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        actions.Children.Add(Ui.Button("Snooze", () => { manager.SetSnooze(!manager.Snoozed); Status(manager.Snoozed ? "Snooze: виджеты скрыты, обновления приостановлены" : "Обновления возобновлены"); }));
-        actions.Children.Add(Ui.Button("Отключить всё", () => { manager.DisableAll(); Status("Все виджеты и автозапуск выключены"); }));
+        actions.Children.Add(Ui.Button("Snooze", () => { manager.SetSnooze(!manager.Snoozed); Status(manager.Snoozed ? "Snoozed: widgets hidden, updates paused" : "Updates resumed"); }));
+        actions.Children.Add(Ui.Button("Disable all", () => { manager.DisableAll(); Status("All widgets and startup disabled"); }));
         Grid.SetColumn(actions, 1);
         top.Children.Add(actions);
         right.Children.Add(top);
@@ -97,13 +103,13 @@ internal sealed class MainWindow : Window
         titlebar.Children.Add(caption);
         titlebar.MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; else DragMove(); };
         var windowButtons = new StackPanel { Orientation = Orientation.Horizontal };
-        var minimize = Ui.Button("−", () => WindowState = WindowState.Minimized);
-        minimize.ToolTip = "Свернуть";
-        minimize.Content = new System.Windows.Shapes.Rectangle { Width = 12, Height = 1, Fill = Ui.Brush("Text") };
-        var close = Ui.Button("✕", Close);
-        close.ToolTip = "Закрыть в трей";
-        System.Windows.Automation.AutomationProperties.SetName(minimize, "Свернуть");
-        System.Windows.Automation.AutomationProperties.SetName(close, "Закрыть в трей");
+        var minimize = Ui.Button("Minimize", () => WindowState = WindowState.Minimized); minimize.Content=WidgetVisuals.Icon("minus",16,"Text"); System.Windows.Automation.AutomationProperties.SetName(minimize,"Minimize");
+        minimize.ToolTip = "Minimize";
+
+        var close = Ui.Button("Close", Close); close.Content=WidgetVisuals.Icon("close",16,"Text"); System.Windows.Automation.AutomationProperties.SetName(close,"Close");
+        close.ToolTip = "Close to tray";
+        System.Windows.Automation.AutomationProperties.SetName(minimize, "Minimize");
+        System.Windows.Automation.AutomationProperties.SetName(close, "Close to tray");
         windowButtons.Children.Add(minimize);
         windowButtons.Children.Add(close);
         Grid.SetColumn(windowButtons, 1);
@@ -113,7 +119,8 @@ internal sealed class MainWindow : Window
         frame.Children.Add(shell);
         Content = frame;
         manager.Changed += OnChanged;
-        Closed += (_, _) => { manager.Changed -= OnChanged; page.Content = null; App.CurrentApp.ReleaseUnusedImages(); };
+        manager.Data.Media.Changed += UpdateBridgeStatus;
+        Closed += (_, _) => { manager.Changed -= OnChanged; manager.Data.Media.Changed -= UpdateBridgeStatus; page.Content = null; App.CurrentApp.ReleaseUnusedImages(); };
         Select("widgets");
         Loaded += (_, _) => App.CurrentApp.ReleaseUnusedImages();
         if (manager.DesktopStatus.Length > 0)
@@ -126,21 +133,25 @@ internal sealed class MainWindow : Window
         b.Margin = new Thickness(0, 0, 0, 8);
         b.Padding = new Thickness(12);
         b.Tag = id;
+        var navIcon = WidgetVisuals.Icon(id switch { "widgets"=>"layout-dashboard", "appearance"=>"palette", "settings"=>"settings", _=>"power" },18,"Text");
+        var row = new StackPanel { Orientation = Orientation.Horizontal }; navIcon.Margin = new Thickness(0,0,12,0); row.Children.Add(navIcon); row.Children.Add(Ui.Text(label,13)); b.Content=row;
+        System.Windows.Automation.AutomationProperties.SetName(b,label);
         nav.Add(b);
         p.Children.Add(b);
     }
     void OnChanged()
     {
-        active.Text = $"●  {manager.ActiveCount} активных" + (manager.Snoozed ? " · Snooze" : " · обновления по событиям");
+        UpdateBridgeStatus();
+        active.Text = $"●  {manager.ActiveCount} active" + (manager.Snoozed ? " · Snooze" : " · event-driven updates");
         if (tab == "widgets")
             BuildWidgets();
     }
-    void Select(string value)
+    internal void Select(string value)
     {
         tab = value;
         foreach (var b in nav)
             b.Background = Ui.Brush((string)b.Tag == value ? "Hover" : "Field");
-        active.Text = $"●  {manager.ActiveCount} активных" + (manager.Snoozed ? " · Snooze" : " · обновления по событиям");
+        active.Text = $"●  {manager.ActiveCount} active" + (manager.Snoozed ? " · Snooze" : " · event-driven updates");
         switch (value)
         {
             case "widgets":
@@ -167,30 +178,67 @@ internal sealed class MainWindow : Window
         var p = Ui.Stack(Ui.Text(title, 30, weight: FontWeights.SemiBold), Ui.Gap(7), Ui.Text(subtitle, 13, "Muted"), Ui.Gap(26));
         return p;
     }
+    void BuildPackLibrary()
+    {
+        var root = Heading("Your widget library.", "Two packs. One desktop. Choose a style, then make it yours.");
+        var cards = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2 };
+        foreach (var pack in WidgetPacks.All)
+        {
+            var activeCount = manager.Settings.Widgets.Count(w => w.Enabled && w.Pack == pack.Id);
+            var body = Ui.Stack(Ui.Text(pack.Character.ToUpperInvariant(), 10, "Muted", FontWeights.SemiBold), Ui.Gap(12), Ui.Text(pack.Name, 28, weight: FontWeights.SemiBold), Ui.Gap(7), Ui.Text(pack.Description, 12, "Muted"), Ui.Gap(20), PackPreview.Create(pack), Ui.Gap(18), Ui.Text($"9 widgets · {activeCount} active", 12, "Muted"), Ui.Gap(16));
+            var explore = Ui.Button("Explore " + pack.Name, () => { selectedPack = pack.Id; BuildWidgets(); }, true);
+            explore.Margin = new Thickness(0);
+            body.Children.Add(explore);
+            var card = Ui.Panel(body, 22);
+            card.Margin = new Thickness(0, 0, 14, 20);
+            cards.Children.Add(card);
+        }
+        root.Children.Add(cards);
+        root.Children.Add(Ui.Text("Mix both packs on the same desktop. Each widget keeps its own style.", 12, "Muted"));
+        page.Content = root;
+    }
     void BuildWidgets()
     {
-        var p = Heading("Ваш рабочий стол.", "Нужное рядом. Остальное — по вашему желанию.");
+        if (selectedPack == null) { BuildPackLibrary(); return; }
+        var pack = WidgetPacks.Get(selectedPack);
+        var p = new StackPanel();
+        var back = Ui.Button("All packs", () => { selectedPack = null; BuildWidgets(); });
+        back.HorizontalAlignment = HorizontalAlignment.Left;
+        back.Margin = new Thickness(0, 0, 0, 20);
+        p.Children.Add(back);
+        p.Children.Add(Heading(pack.Name, pack.Description));
+        var count = manager.Settings.Widgets.Count(w => w.Enabled && w.Pack == pack.Id);
+        var packActions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 20) };
+        packActions.Children.Add(Ui.Text($"9 widgets · {count} active", 12, "Muted"));
+        if (count > 0)
+        {
+            var disable = Ui.Button("Disable this pack", () => manager.DisablePack(pack.Id));
+            disable.Margin = new Thickness(18, 0, 0, 0);
+            packActions.Children.Add(disable);
+        }
+        p.Children.Add(packActions);
         var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3 };
         foreach (var item in WidgetManager.Catalog)
         {
             var body = new StackPanel();
             var preview = new PreviewGrid(item.Title) { Height = 150, Margin = new Thickness(0, 0, 0, 15), ClipToBounds = true };
-            var sample = new RectD(100 + (Array.FindIndex(WidgetManager.Catalog, x => x.Kind == item.Kind) % 3) * 310, 120, 270, 158);
+            preview.SizeChanged += (_, _) => preview.Clip = new RectangleGeometry(new Rect(0, 0, Math.Max(1, preview.ActualWidth), 150), 18, 18);
             if (!manager.Snoozed)
             {
+                preview.Background = PackPreview.Backdrop();
                 var glass = new GlassSurface { Margin = new Thickness(0) };
                 preview.Children.Add(glass);
-                preview.SizeChanged += (_, _) => glass.Update(manager.Wallpaper.GetBrush(sample), Math.Max(80, preview.ActualWidth - 40), 110, manager.Settings);
+                preview.SizeChanged += (_, _) => glass.Update(Math.Max(80, preview.ActualWidth - 40), 110, pack.Id);
             }
             FrameworkElement visual;
             if (manager.Snoozed)
             {
-                visual = Ui.Stack(Ui.Text(item.Icon, 38, "Muted"), Ui.Gap(8), Ui.Text("На паузе", 13, "Muted"));
+                visual = Ui.Stack(WidgetVisuals.Icon(item.Icon,38,"Muted"), Ui.Gap(8), Ui.Text("Paused", 13, "Muted"));
                 visual.HorizontalAlignment = HorizontalAlignment.Center;
             }
             else if (item.Kind is "clock" or "calendar" or "weather" or "music")
             {
-                visual = WidgetContentFactory.Create(manager, new WidgetState { Kind = item.Kind, Size = "S" }, preview: true);
+                visual = WidgetContentFactory.Create(manager, new WidgetState { Kind = item.Kind, Pack = pack.Id, Size = "S" }, preview: true);
                 visual.IsHitTestVisible = false;
                 if (item.Kind == "music")
                 {
@@ -199,8 +247,8 @@ internal sealed class MainWindow : Window
             }
             else
             {
-                var icon = Ui.Text(item.Icon, 46, weight: FontWeights.Light);
-                icon.Foreground = Brushes.White;
+                var icon = WidgetVisuals.Icon(item.Icon,46,"Muted");
+
                 icon.HorizontalAlignment = HorizontalAlignment.Center;
                 visual = icon;
             }
@@ -214,15 +262,15 @@ internal sealed class MainWindow : Window
                 Width = GridLength.Auto
             });
             titleRow.Children.Add(Ui.Text(item.Title, 15, weight: FontWeights.SemiBold));
-            var enabled = manager.Settings.Widgets.Any(w => w.Kind == item.Kind && w.Enabled);
-            var toggle = Ui.Toggle("", enabled, v => { if (manager.Snoozed && v) manager.SetSnooze(false); manager.Toggle(item.Kind); });
-            toggle.ToolTip = enabled ? "Выключить " + item.Title : "Включить " + item.Title;
-            System.Windows.Automation.AutomationProperties.SetName(toggle, (enabled ? "Выключить " : "Включить ") + item.Title);
+            var enabled = manager.Settings.Widgets.Any(w => w.Kind == item.Kind && w.Pack == pack.Id && w.Enabled);
+            var toggle = Ui.Toggle("", enabled, v => { if (manager.Snoozed && v) manager.SetSnooze(false); manager.Toggle(item.Kind, pack.Id); });
+            toggle.ToolTip = (enabled ? "Disable " : "Enable ") + pack.Name + " " + item.Title;
+            System.Windows.Automation.AutomationProperties.SetName(toggle, (enabled ? "Disable " : "Enable ") + pack.Name + " " + item.Title);
             Grid.SetColumn(toggle, 1);
             titleRow.Children.Add(toggle);
             body.Children.Add(titleRow);
             body.Children.Add(Ui.Text(item.Detail, 11, "Muted"));
-            var more = Ui.Button("+ Ещё один", () => { if (manager.Snoozed) manager.SetSnooze(false); manager.Add(item.Kind); });
+            var more = Ui.Button("Add another", () => { if (manager.Snoozed) manager.SetSnooze(false); manager.Add(item.Kind, pack.Id); });
             more.Margin = new Thickness(0, 10, 0, 0);
             more.MinHeight = 28;
             more.Padding = new Thickness(8, 4, 8, 4);
@@ -232,105 +280,81 @@ internal sealed class MainWindow : Window
             grid.Children.Add(card);
         }
         p.Children.Add(grid);
-        p.Children.Add(Ui.Text("Перетащите виджет за свободную область. Правый клик — размер и выключение.", 11, "Muted"));
+        p.Children.Add(Ui.Text("Drag any free area to move. Right-click for size and controls.", 11, "Muted"));
         page.Content = p;
     }
     void BuildAppearance()
     {
-        var p = Heading("Форма света.", "Настоящее преломление. Спокойный интерфейс.");
+        var p = Heading("At home on your desktop.", "Materials belong to packs. These options apply to your widgets.");
         var body = new StackPanel();
-        body.Children.Add(Ui.Text("Материал", 17, weight: FontWeights.SemiBold));
-        body.Children.Add(Ui.Gap(15));
-        AddSlider(body, "Преломление", 0, 2, manager.Settings.GlassStrength, v => manager.Settings.GlassStrength = v);
-        AddSlider(body, "Оттенок стекла", .04, .85, manager.Settings.Opacity, v => manager.Settings.Opacity = v);
-        AddSlider(body, "Размытие", 0, 28, manager.Settings.Blur, v => manager.Settings.Blur = v);
-        body.Children.Add(Ui.Toggle("Светлый оттенок стекла", manager.Settings.Light, v => { manager.Settings.Light = v; manager.ApplyAppearance(); }));
-        body.Children.Add(Ui.Toggle("Аналоговые часы", manager.Settings.Analog, v => { manager.Settings.Analog = v; manager.ApplyAppearance(); }));
-        body.Children.Add(Ui.Toggle("Температура в °F", manager.Settings.Fahrenheit, v => { manager.Settings.Fahrenheit = v; manager.ApplyAppearance(); }));
-        body.Children.Add(Ui.Toggle("Показывать секунды", manager.Settings.Seconds, v => { manager.Settings.Seconds = v; manager.Save(); }));
-        body.Children.Add(Ui.Toggle("24-часовой формат", manager.Settings.Hour24, v => { manager.Settings.Hour24 = v; manager.Save(); }));
-        body.Children.Add(Ui.Toggle("Поверх обычных окон", manager.Settings.Topmost, v => { manager.Settings.Topmost = v; manager.ApplyAppearance(); }));
-        body.Children.Add(Ui.Text("Свободные окна · привязка к Explorer отключена", 12, "Muted"));
+        body.Children.Add(Ui.Text("Time & placement", 17, weight: FontWeights.SemiBold));
         body.Children.Add(Ui.Gap(14));
-        body.Children.Add(Ui.Button("Проверить оптику на сетке", manager.ShowOpticsTest));
-        body.Children.Add(Ui.Gap(10));
-        body.Children.Add(Ui.Button("Сбросить позиции по центру экрана", manager.ResetPositions));
+        body.Children.Add(Ui.Toggle("Analog clock", manager.Settings.Analog, v => { manager.Settings.Analog = v; manager.ApplyAppearance(); }));
+        body.Children.Add(Ui.Toggle("Temperature in °F", manager.Settings.Fahrenheit, v => { manager.Settings.Fahrenheit = v; manager.ApplyAppearance(); }));
+        body.Children.Add(Ui.Toggle("Show seconds", manager.Settings.Seconds, v => { manager.Settings.Seconds = v; manager.Save(); }));
+        body.Children.Add(Ui.Toggle("24-hour time", manager.Settings.Hour24, v => { manager.Settings.Hour24 = v; manager.Save(); }));
+        body.Children.Add(Ui.Toggle("Always on top", manager.Settings.Topmost, v => { manager.Settings.Topmost = v; manager.ApplyAppearance(); }));
+        body.Children.Add(Ui.Text("Independent floating windows", 12, "Muted"));
         body.Children.Add(Ui.Gap(14));
-        body.Children.Add(Ui.Text("Движение учитывает системную настройку анимаций. Snooze скрывает поверхности и останавливает обновления. Поведение виртуальных столов зависит от оболочки Windows.", 12, "Muted"));
+        body.Children.Add(Ui.Button("Center widgets on this screen", manager.ResetPositions));
+        body.Children.Add(Ui.Gap(14));
+        body.Children.Add(Ui.Text("Motion follows Windows animation settings. Snooze hides widgets and pauses updates. Virtual desktop behavior depends on Windows.", 12, "Muted"));
         p.Children.Add(Ui.Panel(body, 24));
         page.Content = p;
     }
-    void AddSlider(Panel p, string label, double min, double max, double value, Action<double> update)
-    {
-        var text = Ui.Text(label + "  " + value.ToString("0.00"), 13);
-        p.Children.Add(text);
-        p.Children.Add(Ui.Slider(min, max, value, v => { update(v); text.Text = label + "  " + v.ToString("0.00"); manager.ApplyAppearance(); }));
-    }
     void BuildSettings()
     {
-        var p = Heading("Всё под контролем.", "Разрешения и подключения включаете только вы.");
+        var p = Heading("Make it yours.", "You choose the connections and permissions.");
         var body = new StackPanel();
-        body.Children.Add(Ui.Text("Погода", 17, weight: FontWeights.SemiBold));
+        chatSettings=new AssistantSettingsView(manager,Status);body.Children.Add(chatSettings);body.Children.Add(Ui.Gap(28));
+        body.Children.Add(Ui.Text("Weather", 17, weight: FontWeights.SemiBold));
         body.Children.Add(Ui.Gap(10));
-        body.Children.Add(Ui.Text("Город", 12, "Muted"));
+        body.Children.Add(Ui.Text("City", 12, "Muted"));
         var city = Ui.Input(manager.Settings.City);
         body.Children.Add(city);
-        var weatherButton = Ui.Button("Сохранить и обновить", async () => { manager.Settings.City = city.Text; manager.Save(); await manager.Data.RefreshWeatherAsync(); Status(manager.Data.Weather.Error.Length == 0 ? "Погода обновлена" : manager.Data.Weather.Error); }, true);
+        var weatherButton = Ui.Button("Save & refresh", async () => { manager.Settings.City = city.Text; manager.Save(); await manager.Data.RefreshWeatherAsync(); Status(manager.Data.Weather.Error.Length == 0 ? "Weather updated" : manager.Data.Weather.Error); }, true);
         weatherButton.Margin = new Thickness(0, 10, 0, 20);
         body.Children.Add(weatherButton);
-        body.Children.Add(Ui.Toggle("Тексты песен · название трека передаётся LRCLIB", manager.Settings.LyricsEnabled, v => { manager.Settings.LyricsEnabled = v; manager.Save(); Status(v ? "Тексты появятся при обновлении трека" : "Получение текстов выключено"); }));
-        body.Children.Add(Ui.Toggle("Автозапуск при входе в Windows", StartupRegistration.Enabled, v => { try { StartupRegistration.Set(v); Status(v ? "Автозапуск включён" : "Автозапуск выключен"); } catch (Exception e) { Status(e.Message); } }));
+        body.Children.Add(Ui.Toggle("Lyrics · track details are shared with LRCLIB", manager.Settings.LyricsEnabled, v => { manager.Settings.LyricsEnabled = v; manager.Save(); manager.Data.RefreshLyrics(); Status(v ? "Finding lyrics for the current track…" : "Lyrics disabled"); }));
+        body.Children.Add(Ui.Text("The Lyrics button appears only when text is found. Timed lyrics follow playback; other lyrics are shown as plain text.", 11, "Muted"));
+        body.Children.Add(Ui.Toggle("Launch at Windows sign-in", StartupRegistration.Enabled, v => { try { StartupRegistration.Set(v); Status(v ? "Launch at sign-in enabled" : "Launch at sign-in disabled"); } catch (Exception e) { Status(e.Message); } }));
         body.Children.Add(Ui.Gap(20));
-        body.Children.Add(Ui.Text("Источник музыки", 17, weight: FontWeights.SemiBold));
-        var sources = new ComboBox { Margin = new Thickness(0, 8, 0, 8), MinHeight = 34, ItemsSource = new[] { "Автоматически" }.Concat(manager.Data.Media.Sources).ToArray(), SelectedIndex = 0 };
+        body.Children.Add(Ui.Text("Music source", 17, weight: FontWeights.SemiBold));
+        var sources = new ComboBox { Margin = new Thickness(0, 8, 0, 8), MinHeight = 34, ItemsSource = new[] { "Automatic" }.Concat(manager.Data.Media.Sources).ToArray(), SelectedIndex = 0 };
         sources.SelectionChanged += (_, _) => manager.Data.Media.SelectSource(sources.SelectedIndex == 0 ? null : sources.SelectedItem as string);
         body.Children.Add(sources);
-        body.Children.Add(Ui.Text("Список доступен после включения музыкального виджета. Меню выбора принадлежит Windows.", 11, "Muted"));
+        body.Children.Add(Ui.Text("Enable the music widget to see available sources.", 11, "Muted"));
+        body.Children.Add(Ui.Gap(16));
+        body.Children.Add(Ui.Text("SoundCloud queue controls", 15, weight: FontWeights.SemiBold));
+        body.Children.Add(Ui.Gap(6));
+        body.Children.Add(Ui.Text("The optional YoWidgets SoundCloud Bridge connects Shuffle and Repeat to the real browser player. Install the extension once, then reload SoundCloud. Native players use Windows media controls.", 12, "Muted"));
+        UpdateBridgeStatus();
+        body.Children.Add(bridgeStatus);
         body.Children.Add(Ui.Gap(20));
-        body.Children.Add(Ui.Text("Уведомления Windows", 17, weight: FontWeights.SemiBold));
+        body.Children.Add(Ui.Text("Windows notifications", 17, weight: FontWeights.SemiBold));
         body.Children.Add(Ui.Gap(8));
-        body.Children.Add(Ui.Text("Нужны package identity и отдельное разрешение Windows. Лента не блокирует системные всплытия и не удаляет оригиналы.", 12, "Muted"));
-        body.Children.Add(Ui.Toggle("Включить чтение уведомлений", manager.Settings.NotificationsEnabled, v => { manager.Settings.NotificationsEnabled = v; manager.Save(); if (!v) manager.Data.Notifications.Suspend(); else if (!manager.Snoozed) manager.Data.Notifications.Enable(); }));
-        body.Children.Add(Ui.Button("Запросить доступ", async () => { if (manager.Snoozed) { Status("Сначала выйдите из Snooze"); return; } if (!manager.Settings.NotificationsEnabled) { Status("Сначала включите чтение уведомлений"); return; } await manager.Data.Notifications.RefreshAsync(true); Status(manager.Data.Notifications.Status); }));
+        body.Children.Add(Ui.Text("Package identity and Windows permission are required. This feed does not block or delete original notifications.", 12, "Muted"));
+        body.Children.Add(Ui.Toggle("Enable notification access", manager.Settings.NotificationsEnabled, v => { manager.Settings.NotificationsEnabled = v; manager.Save(); if (!v) manager.Data.Notifications.Suspend(); else if (!manager.Snoozed) manager.Data.Notifications.Enable(); }));
+        body.Children.Add(Ui.Button("Request access", async () => { if (manager.Snoozed) { Status("Resume widgets before requesting access"); return; } if (!manager.Settings.NotificationsEnabled) { Status("Enable notification access first"); return; } await manager.Data.Notifications.RefreshAsync(true); Status(manager.Data.Notifications.Status); }));
         body.Children.Add(Ui.Gap(24));
-        body.Children.Add(Ui.Text("Ассистент · подключение провайдера", 17, weight: FontWeights.SemiBold));
-        body.Children.Add(Ui.Gap(8));
-        body.Children.Add(Ui.Text("Текст отправляется только по кнопке «Отправить». Экран, уведомления и фото не включаются. Стоимость определяет ваш провайдер.", 12, "Muted"));
-        body.Children.Add(Ui.Gap(10));
-        body.Children.Add(Ui.Text("HTTPS endpoint, совместимый с Chat Completions", 12, "Muted"));
-        var endpoint = Ui.Input(manager.Settings.AiEndpoint);
-        body.Children.Add(endpoint);
-        body.Children.Add(Ui.Gap(8));
-        body.Children.Add(Ui.Text("Модель", 12, "Muted"));
-        var model = Ui.Input(manager.Settings.AiModel);
-        body.Children.Add(model);
-        body.Children.Add(Ui.Gap(8));
-        body.Children.Add(Ui.Text("API-ключ · защищён учётной записью Windows", 12, "Muted"));
-        var key = new PasswordBox { Padding = new Thickness(12), Background = Ui.Brush("Field"), Foreground = Ui.Brush("Text"), BorderBrush = Ui.Brush("Line") };
-        body.Children.Add(key);
-        var saveAi = Ui.Button("Сохранить подключение", () => { if (!Uri.TryCreate(endpoint.Text, UriKind.Absolute, out var u) || u.Scheme != "https") { Status("Укажите корректный HTTPS-адрес"); return; } manager.Settings.AiEndpoint = endpoint.Text.TrimEnd('/'); manager.Settings.AiModel = model.Text.Trim(); if (!string.IsNullOrWhiteSpace(key.Password)) manager.Settings.AiKeyProtected = AiService.Protect(key.Password); key.Clear(); manager.Save(); Status("Подключение сохранено. Запросы ещё не отправлялись."); });
-        saveAi.Margin = new Thickness(0, 10, 0, 0);
-        body.Children.Add(saveAi);
-        body.Children.Add(Ui.Gap(12));
-        body.Children.Add(Ui.Button("Удалить сохранённый ключ", () => { manager.Settings.AiKeyProtected = null; manager.Data.Ai.Cancel(); manager.Save(); Status("Ключ удалён"); }));
         p.Children.Add(Ui.Panel(body, 24));
         page.Content = p;
     }
     void BuildCleanup()
     {
-        var p = Heading("Без следов в рабочем столе.", "Отключить сейчас или удалить вашу установку.");
-        var body = Ui.Stack(Ui.Text("Отключить всё", 18, weight: FontWeights.SemiBold), Ui.Gap(8), Ui.Text("Уберёт виджеты, остановит обновления, выключит автозапуск. Ваши настройки сохранятся.", 13, "Muted"), Ui.Gap(14), Ui.Button("Отключить всё", () => { manager.DisableAll(); Status("Виджеты, обновления и автозапуск выключены"); }), Ui.Gap(28), Ui.Text("Удалить полностью", 18, "Danger", FontWeights.SemiBold), Ui.Gap(8), Ui.Text("Будут удалены установленная копия YoWidgets, её автозапуск, identity, локальные настройки, кеши, копии фото и сохранённый ключ. Исходные фото, examples и Windhawk сохранятся. Это действие нельзя отменить.", 13, "Muted"), Ui.Gap(14));
-        var restore = Ui.Toggle("Также вернуть изменённые YoWidgets громкость и яркость", false, _ => { });
+        var p = Heading("Leave your desktop clear.", "Pause everything, or remove your installation.");
+        var body = Ui.Stack(Ui.Text("Disable all", 18, weight: FontWeights.SemiBold), Ui.Gap(8), Ui.Text("Hide widgets, stop updates and disable launch at sign-in. Your settings stay saved.", 13, "Muted"), Ui.Gap(14), Ui.Button("Disable all", () => { manager.DisableAll(); Status("Widgets, updates and launch at sign-in disabled"); }), Ui.Gap(28), Ui.Text("Uninstall completely", 18, "Danger", FontWeights.SemiBold), Ui.Gap(8), Ui.Text("Removes this YoWidgets installation, startup entry, package identity, settings, caches, copied photos and saved key. Original photos, examples and Windhawk are preserved. This cannot be undone.", 13, "Muted"), Ui.Gap(14));
+        var restore = Ui.Toggle("Also restore volume and brightness changed by YoWidgets", false, _ => { });
         body.Children.Add(restore);
         var installed = Cleanup.IsInstalled;
-        var uninstall = Ui.Button("Удалить полностью", async () => { if (restore.IsChecked == true) { var issues = await manager.Data.Controls.RestoreAsync(); if (issues.Length > 0) { Status("Удаление остановлено: " + issues + ". Можно снять выбор отката и повторить."); return; } } Status("Начинается удаление YoWidgets…"); Cleanup.LaunchUninstall(); });
+        var uninstall = Ui.Button("Uninstall completely", async () => { if (restore.IsChecked == true) { var issues = await manager.Data.Controls.RestoreAsync(); if (issues.Length > 0) { Status("Uninstall stopped: " + issues + ". You can deselect restore and try again."); return; } } Status("Uninstalling YoWidgets…"); Cleanup.LaunchUninstall(); });
         uninstall.IsEnabled = installed;
-        uninstall.ToolTip = installed ? "Удалить эту per-user установку" : "Сейчас запущена сборка из исходников. Установите через scripts/install.ps1; исходники не удаляются.";
+        uninstall.ToolTip = installed ? "Remove this user installation" : "This is a development build. Install with scripts/install.ps1; source files are preserved.";
         body.Children.Add(uninstall);
         body.Children.Add(Ui.Gap(12));
-        body.Children.Add(Ui.Text(installed ? "Используется проверенная папка установки текущего пользователя." : "Запущена сборка из исходников: полное удаление исходного проекта заблокировано. Для неё доступно отключение и обычный выход.", 12, "Muted"));
+        body.Children.Add(Ui.Text(installed ? "Uses the verified installation folder for this Windows account." : "Development build: source deletion is blocked. You can disable widgets or exit.", 12, "Muted"));
         body.Children.Add(Ui.Gap(20));
-        body.Children.Add(Ui.Button("Полностью выйти из программы", App.CurrentApp.ExitApp));
+        body.Children.Add(Ui.Button("Quit YoWidgets", App.CurrentApp.ExitApp));
         p.Children.Add(Ui.Panel(body, 24));
         page.Content = p;
     }

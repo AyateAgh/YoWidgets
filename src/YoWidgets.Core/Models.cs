@@ -3,8 +3,11 @@ namespace YoWidgets.Core;
 public record RectD(double X, double Y, double Width, double Height);
 public record PointD(double X, double Y);
 public record LyricLine(double Seconds, string Text);
+public sealed record CalendarTask(string Id,string Title,DateTimeOffset Due,bool Completed=false);
 public sealed class WidgetState
 {
+    public string ContentId { get; set; } = "";
+    public string Pack { get; set; } = "liquid";
     public string Id { get; set; } = Guid.NewGuid().ToString("N"); public string Kind { get; set; } = "clock"; public bool Enabled
     {
         get; set;
@@ -17,10 +20,11 @@ public sealed class WidgetState
 }
 public sealed class AppSettings
 {
-    public List<WidgetState> Widgets { get; set; } = []; public string City { get; set; } = "Kyiv"; public double GlassStrength { get; set; } = 1; public double Opacity { get; set; } = .2; public double Blur { get; set; } = 12; public bool Light
-    {
-        get; set;
-    }
+    public bool InterfaceSounds { get; set; }
+    public double InterfaceVolume { get; set; } = .12;
+    public string InterfaceTheme { get; set; } = "dark";
+    public List<WidgetState> Widgets { get; set; } = []; public string City { get; set; } = "Kyiv";
+    public List<CalendarTask> CalendarTasks {get;set;}=[];
     public bool Seconds
     {
         get; set;
@@ -49,6 +53,17 @@ public sealed class AppSettings
     {
         get; set;
     }
+    public string AiProvider { get; set; } = "";
+    public List<ChatConnection> ChatConnections {get;set;}=[];
+    public VoiceCallOptions VoiceCall {get;set;}=new();
+    public bool AiAskBeforeControl {get;set;}
+    public string AiImageModel {get;set;}="";
+    public string AiVideoModel {get;set;}="";
+    public GenerationConnection ImageConnection {get;set;}=new();
+    public GenerationConnection VideoConnection {get;set;}=new();
+    public GenerationConnection Model3DConnection {get;set;}=new(){Mode="off",Provider="Pollinations"};
+    public GenerationConnection AudioConnection {get;set;}=new(){Mode="off",Provider="Pollinations"};
+    public string AiProcessText { get; set; } = "Thinking it through…";
     public string AiEndpoint { get; set; } = "https://api.openai.com/v1"; public string AiModel { get; set; } = ""; public string? AiKeyProtected
     {
         get; set;
@@ -60,17 +75,31 @@ public sealed class AppSettings
     }
     public void Normalize()
     {
+        InterfaceVolume = double.IsFinite(InterfaceVolume) ? Math.Clamp(InterfaceVolume, 0, 1) : .12;
+        InterfaceTheme = "dark";
         // Disable the old experimental Explorer parent even for existing settings.
         DesktopMode = false;
-        GlassStrength = Finite(GlassStrength, 1, 0, 2);
-        Opacity = Finite(Opacity, .2, 0, .85);
-        Blur = Finite(Blur, 12, 0, 28);
+        AiModel ??= "";
+        VoiceCall??=new();VoiceCall.Normalize();
+        CalendarTasks=(CalendarTasks??[]).Where(t=>t!=null&&Guid.TryParse(t.Id,out _)&&!string.IsNullOrWhiteSpace(t.Title)&&t.Title.Length<=160&&t.Due.Year is >=2000 and <=2200).DistinctBy(t=>t.Id).Take(500).ToList();
+        AiImageModel=(AiImageModel??"").Trim();AiVideoModel=(AiVideoModel??"").Trim();
+        ImageConnection??=new();VideoConnection??=new();Model3DConnection??=new(){Mode="off",Provider="Pollinations"};AudioConnection??=new(){Mode="off",Provider="Pollinations"};
+        ImageConnection.Normalize();VideoConnection.Normalize();Model3DConnection.Normalize();AudioConnection.Normalize();
+        AiProcessText = string.IsNullOrWhiteSpace(AiProcessText) ? "Thinking it through…" : AiProcessText.Trim()[..Math.Min(80,AiProcessText.Trim().Length)];
+        if (!AssistantProtocol.Providers.Contains(AiProvider))
+            AiProvider = AiModel.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase) || AiModel.StartsWith("o1", StringComparison.OrdinalIgnoreCase) || AiModel.StartsWith("o3", StringComparison.OrdinalIgnoreCase) ? "OpenAI" : "Gemini";
+        if (string.IsNullOrWhiteSpace(AiModel) || AiModel.Equals("Gemini", StringComparison.OrdinalIgnoreCase))
+            AiModel = AssistantProtocol.DefaultModel(AiProvider);
+        ChatConnections=(ChatConnections??[]).Where(c=>c!=null&&AssistantProtocol.Providers.Contains(c.Provider)&&!string.IsNullOrWhiteSpace(c.KeyProtected)&&!string.IsNullOrWhiteSpace(c.Model)).DistinctBy(c=>c.Provider).Take(AssistantProtocol.Providers.Length).ToList();
+        YoWidgets.Core.ChatConnections.Remember(this);
         City = string.IsNullOrWhiteSpace(City) ? "Kyiv" : City.Trim()[..Math.Min(City.Trim().Length, 120)];
         Widgets ??= [];
         Widgets = Widgets.Where(w => w != null && new[] { "clock", "calendar", "weather", "music", "photo", "focus", "quick", "notifications", "assistant" }.Contains(w.Kind)).Take(24).ToList();
         var ids = new HashSet<string>();
         foreach (var w in Widgets)
         {
+            w.Pack = CatalogRules.ValidId(w.Pack)?w.Pack:"liquid";
+            if(!CatalogRules.ValidId(w.ContentId))w.ContentId=w.Pack+"-"+w.Kind;
             if (!ids.Add(w.Id))
             {
                 w.Id = Guid.NewGuid().ToString("N");
@@ -86,5 +115,4 @@ public sealed class AppSettings
                 w.Id = Guid.NewGuid().ToString("N");
         }
     }
-    private static double Finite(double v, double fallback, double min, double max) => double.IsFinite(v) ? Math.Clamp(v, min, max) : fallback;
 }

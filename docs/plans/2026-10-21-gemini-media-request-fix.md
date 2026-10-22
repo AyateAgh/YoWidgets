@@ -1,0 +1,11 @@
+# Gemini media request correction
+
+The reported immediate failure was reproduced using the saved connection and a synthetic blue-circle prompt. The actual response was HTTP 400 / invalid_request: `response_format.mime_type=image/png` is unsupported; the endpoint accepts JPEG for this parameter. The host now omits the forced output format and preserves the returned MIME/bytes, including JPEG files saved as `.jpg`.
+
+A corrected controlled request reached HTTP 429 / too_many_requests with an explicit Free Tier limit of 0 requests/day for gemini-nano-banana-2.1. A subsequent actual native chat tool-loop probe returned the same absent access expressed as 0 input tokens/minute on Free Tier. Neither response proves successful image generation. Current [Google API pricing](https://ai.google.dev/gemini-api/docs/pricing) lists image generation as unavailable in Free Tier. No billing settings or credentials were changed, and no alternate paid generation provider/model was silently tried.
+
+The media adapter now reads a bounded error prefix, extracts plain provider fields and displays HTTP status, model, provider code and sanitized reason. Credentials are redacted; raw bodies are not logged. HTTP 400 does not receive a guessed billing explanation. Zero Free Tier request/token quotas identify absent generation access and explain the billing/eligible-key remedy, preserving the actual units. Temporary limits remain distinct. No automatic billable retry was added.
+
+Four regression tests first failed and then passed: provider-selected output/JPEG persistence, zero daily quota, sanitized HTTP 400 details, and zero token quota without invented daily units. All 63 assistant/provider/tool tests pass. Seven native media UI groups pass, including actual MP4 playback metadata, decoded posters, native MP4-to-GIF frames/timing/colors, image markup and media cards/viewer. English source-copy checks pass for 67 files; premium strict audit has 0 findings; git diff --check passes.
+
+The previous claim remains limited: local generation/edit plumbing is verified, but real media generation with the saved key is blocked by Google's zero Free Tier quota. The client request defect is fixed; the API account entitlement requires the user to enable billing or provide an eligible key.

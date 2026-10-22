@@ -2,7 +2,7 @@ namespace YoWidgets;
 
 internal sealed class WidgetManager : IDisposable
 {
-    public static readonly (string Kind, string Title, string Detail, string Icon)[] Catalog = [("clock", "Часы", "Время в вашем ритме", "◷"), ("weather", "Погода", "За окном и на весь день", "☀"), ("calendar", "Календарь", "Сегодня и весь месяц", "▦"), ("music", "Музыка", "Ваш трек, всегда рядом", "♫"), ("photo", "Фото", "Маленькое окно в любимое", "▧"), ("focus", "Фокус", "Меньше шума. Больше дела.", "☾"), ("quick", "Управление", "Звук и яркость под рукой", "☷"), ("notifications", "Уведомления", "Важное в одном месте", "▤"), ("assistant", "Ассистент", "По запросу, без фона", "✧")];
+    public static readonly (string Kind, string Title, string Detail, string Icon)[] Catalog = [("clock", "Clock", "Time at your pace", "clock"), ("weather", "Weather", "Outside, and through the day", "sun"), ("calendar", "Calendar", "Today, and the month ahead", "calendar-days"), ("music", "Music", "Your music, within reach", "music"), ("photo", "Photos", "A window into your favorites", "image"), ("focus", "Focus", "Less noise. More focus.", "moon"), ("quick", "Controls", "Sound and brightness, at hand", "sliders-horizontal"), ("notifications", "Notifications", "What matters, in one place", "bell"), ("assistant", "Assistant", "Here when you need it", "sparkles")];
     public AppSettings Settings
     {
         get;
@@ -11,10 +11,11 @@ internal sealed class WidgetManager : IDisposable
     {
         get;
     }
-    public WallpaperProvider Wallpaper { get; } = new(); public DataServices Data
+    public DataServices Data
     {
         get;
     }
+    internal WidgetCommandHub Commands {get;}
     public bool Snoozed
     {
         get; private set;
@@ -29,34 +30,46 @@ internal sealed class WidgetManager : IDisposable
     }
     public event Action? Changed;
     readonly Dictionary<string, WidgetWindow> windows = []; bool disposed;
+    readonly BackgroundContrast contrast;
     public WidgetManager(string root, bool forceNormal)
     {
         ForceNormal = forceNormal;
         Store = new(Path.Combine(root, "settings.json"));
         Settings = Store.Load();
-        WidgetVisuals.Tone(Settings.Light);
+        var content=File.Exists(Path.Combine(root,"Content","installed.json"))?new ContentStore(Path.Combine(root,"Content")):null;
+        if(content!=null)WidgetPacks.LoadInstalled(content);
+        WidgetVisuals.Tone(false, true);
         Data = new DataServices(this);
+        Commands=new(this);
+        contrast = new(() => windows.Values.ToArray());
         var migrate = Settings.FloatingPlacementVersion < 1;
         foreach (var s in Settings.Widgets.Where(s => s.Enabled))
+        {
+            if(content!=null&&!content.IsReady(s.ContentId)){s.Enabled=false;continue;}
             Open(s, migrate);
+        }
         if (migrate)
             ResetPositions();
         Settings.FloatingPlacementVersion = 1;
         Save();
         Data.UpdateActivity();
+        contrast.Update(windows.Count > 0);
     }
     public int ActiveCount => Settings.Widgets.Count(s => s.Enabled);
-    public void Save()
+    public void Save() => TrySave();
+    public bool TrySave()
     {
         try
         {
             Store.Save(Settings);
+            return true;
         }
-        catch (Exception e) { App.Log("settings-save", e); App.CurrentApp.Shell?.Status("Не удалось сохранить настройки: " + e.Message); }
+        catch (Exception e) { App.Log("settings-save", e); App.CurrentApp.Shell?.Status("Could not save settings: " + e.Message); return false; }
     }
-    public void Toggle(string kind)
+    public void Toggle(string kind, string pack)
     {
-        var states = Settings.Widgets.Where(s => s.Kind == kind).ToArray();
+        pack = WidgetPacks.Get(pack).Id;
+        var states = Settings.Widgets.Where(s => s.Kind == kind && s.Pack == pack).ToArray();
         if (states.Any(s => s.Enabled))
         {
             foreach (var s in states)
@@ -70,6 +83,7 @@ internal sealed class WidgetManager : IDisposable
                 s = new()
                 {
                     Kind = kind,
+                    Pack = pack,
                     X = 60 + (ActiveCount % 3) * 390,
                     Y = 60 + (ActiveCount / 3) * 220
                 };
@@ -81,15 +95,19 @@ internal sealed class WidgetManager : IDisposable
         Save();
         Changed?.Invoke();
     }
-    public void Add(string kind)
+    public void Add(string kind, string pack, RectD? targetArea = null,string? contentId=null,string defaultSize="M")
     {
-        var s = new WidgetState { Kind = kind, Enabled = true, X = 80 + (ActiveCount % 3) * 380, Y = 80 + (ActiveCount / 3) * 220 };
+        var s = new WidgetState { Kind = kind, Pack = WidgetPacks.Get(pack).Id,ContentId=contentId??pack+"-"+kind,Size=defaultSize, Enabled = true, X = 80 + (ActiveCount % 3) * 380, Y = 80 + (ActiveCount / 3) * 220 };
         Settings.Widgets.Add(s);
-        Open(s, true);
+        Open(s, true, targetArea);
         Save();
         Changed?.Invoke();
     }
-    void Open(WidgetState s, bool center = false)
+    public void DisablePack(string pack)
+    {
+        foreach (var state in Settings.Widgets.Where(w => w.Enabled && w.Pack == pack).ToArray()) Disable(state);
+    }
+    void Open(WidgetState s, bool center = false, RectD? targetArea = null)
     {
         if (windows.ContainsKey(s.Id))
             return;
@@ -97,10 +115,14 @@ internal sealed class WidgetManager : IDisposable
         windows[s.Id] = w;
         w.Show();
         if (center)
-            w.CenterOnCurrentMonitor(windows.Count - 1, windows.Count);
+        {
+            if(targetArea is {} area)w.CenterInWorkArea(area, windows.Count-1);
+            else w.CenterOnCurrentMonitor(windows.Count - 1, windows.Count);
+        }
         w.Activate();
         if (Snoozed)
             w.Hide();
+        contrast.Update(!Snoozed && windows.Count > 0);
     }
     public void ResetPositions()
     {
@@ -117,7 +139,7 @@ internal sealed class WidgetManager : IDisposable
             w.Activate();
         }
         Save();
-        App.CurrentApp.Shell?.Status("Виджеты перемещены в центр текущего монитора");
+        App.CurrentApp.Shell?.Status("Widgets centered on this screen");
     }
     public void RevealWidgets()
     {
@@ -134,17 +156,19 @@ internal sealed class WidgetManager : IDisposable
         s.Enabled = false;
         if (windows.Remove(s.Id, out var w))
             w.CloseOwned();
+        contrast.Update(!Snoozed && windows.Count > 0);
         Save();
         Changed?.Invoke();
     }
+    internal void Enable(WidgetState state){if(state.Enabled)return;state.Enabled=true;Open(state);Save();Changed?.Invoke();}
     public void DisableAll()
     {
         Settings.DisableIntegrations();
         foreach (var s in Settings.Widgets.ToArray())
             Disable(s);
         Data.Suspend();
-        Wallpaper.ClearCache(all:true);
         Snoozed = true;
+        contrast.Update(false);
         StartupRegistration.Set(false);
         Save();
         Changed?.Invoke();
@@ -154,10 +178,10 @@ internal sealed class WidgetManager : IDisposable
         if (Snoozed == snooze)
             return;
         Snoozed = snooze;
+        contrast.Update(false);
         if (snooze)
         {
             Data.Suspend();
-            Wallpaper.ClearCache(all:true);
             foreach (var w in windows.Values.ToArray())
                 w.CloseOwned();
             windows.Clear();
@@ -168,11 +192,12 @@ internal sealed class WidgetManager : IDisposable
             foreach (var state in Settings.Widgets.Where(x => x.Enabled))
                 Open(state);
         }
+        contrast.Update(!snooze && windows.Count > 0);
         Changed?.Invoke();
     }
     public void ApplyAppearance()
     {
-        WidgetVisuals.Tone(Settings.Light);
+        WidgetVisuals.Tone(false, true);
         Settings.Normalize();
         foreach (var w in windows.Values)
         {
@@ -206,8 +231,9 @@ internal sealed class WidgetManager : IDisposable
         foreach (var w in windows.Values.ToArray())
             w.CloseOwned();
         windows.Clear();
+        Commands.Dispose();
         Data.Dispose();
-        Wallpaper.Dispose();
+        contrast.Dispose();
         Save();
     }
 }

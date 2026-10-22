@@ -5,8 +5,15 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/YoWidgets.Tests/YoWidgets.Tests.csproj" />
+    <Project Path="tests/YoWidgets.Platform.Tests/YoWidgets.Platform.Tests.csproj" />
+    <Project Path="tests/YoWidgets.Platform.UiTests/YoWidgets.Platform.UiTests.csproj" />
+    <Project Path="tests/YoWidgets.Assistant.Tests/YoWidgets.Assistant.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/ShaderCompiler/ShaderCompiler.csproj" />
+    <Project Path="tools/CompositionProbe/CompositionProbe.csproj" />
+    <Project Path="tools/MediaFixture/MediaFixture.csproj" />
+    <Project Path="tools/MediaProbe/MediaProbe.csproj" />
+    <Project Path="tools/WallpaperProbe/WallpaperProbe.csproj" />
   </Folder>
 </Solution>

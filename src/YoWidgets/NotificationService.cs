@@ -5,7 +5,7 @@ namespace YoWidgets;
 internal sealed class NotificationService
 {
     public record Entry(string App, string Title, string Body, DateTimeOffset Time);
-    public IReadOnlyList<Entry> Entries { get; private set; } = Array.Empty<Entry>(); public string Status { get; private set; } = "Нужны identity и разрешение Windows"; public event Action? Changed; bool suspended; int generation; public void Enable()
+    public IReadOnlyList<Entry> Entries { get; private set; } = Array.Empty<Entry>(); public string Status { get; private set; } = "Windows identity and permission required"; public event Action? Changed; bool suspended; int generation; public void Enable()
     {
         suspended = false;
         generation++;
@@ -23,7 +23,7 @@ internal sealed class NotificationService
                 return;
             if (access != UserNotificationListenerAccessStatus.Allowed)
             {
-                Status = "Разрешите доступ к уведомлениям в Windows";
+                Status = "Allow notification access in Windows";
                 Entries = Array.Empty<Entry>();
                 Changed?.Invoke();
                 return;
@@ -44,12 +44,12 @@ internal sealed class NotificationService
                 catch { }
             }
             Entries = entries;
-            Status = entries.Count == 0 ? "Новых уведомлений нет" : "Уведомления Windows";
+            Status = entries.Count == 0 ? "No new notifications" : "Windows notifications";
             listener.NotificationChanged -= OnChanged;
             listener.NotificationChanged += OnChanged;
             Changed?.Invoke();
         }
-        catch (Exception e) { Status = "Для доступа установите пакет identity в настройках"; App.Log("notifications", e); Changed?.Invoke(); }
+        catch (Exception e) { Status = "Install the package identity to enable access"; App.Log("notifications", e); Changed?.Invoke(); }
     }
     void OnChanged(UserNotificationListener s, UserNotificationChangedEventArgs e)
     {

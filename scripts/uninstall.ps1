@@ -84,7 +84,32 @@ if (Test-Path -LiteralPath $m.DataRoot) {
   }
   Remove-Item -LiteralPath $bundleJournal -Force
  }
- $ownedData=@('settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','owned-images.json.tmp','bundle-cache.json.tmp')
+ # New assistant state is owned only when its exact root carries our marker.
+ foreach($name in @('Assistant','assistant-cache','browser-profile','integrations')) {
+  $ownedRoot=[IO.Path]::GetFullPath((Join-Path $m.DataRoot $name)).TrimEnd('\')
+  if (-not $ownedRoot.StartsWith([IO.Path]::GetFullPath($m.DataRoot).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid assistant data location' }
+  if (-not (Test-Path -LiteralPath $ownedRoot)) { continue }
+  Assert-NoReparse $ownedRoot
+  $ownership=Join-Path $ownedRoot '.yowidgets-owned.json'
+  if (-not (Test-Path -LiteralPath $ownership -PathType Leaf)) { throw ('Unrecognized assistant data preserved: '+$ownedRoot) }
+  Assert-NoReparse $ownership
+  $record=Get-Content -LiteralPath $ownership -Raw | ConvertFrom-Json
+  if ($record.Product -ne 'YoWidgets.Native.v1' -or $record.Path -ne $ownedRoot) { throw 'Assistant ownership mismatch; data preserved.' }
+  $pending=[Collections.Generic.Queue[string]]::new();$pending.Enqueue($ownedRoot);$folders=[Collections.Generic.List[string]]::new();$members=[Collections.Generic.List[string]]::new()
+  while($pending.Count -gt 0) {
+   $directory=$pending.Dequeue();$folders.Add($directory)
+   foreach($entry in Get-ChildItem -LiteralPath $directory -Force) {
+    if (-not $entry.FullName.StartsWith($ownedRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Assistant member escaped its owned root.' }
+    Assert-NoReparse $entry.FullName
+    if($entry.PSIsContainer) { $pending.Enqueue($entry.FullName) } else { $members.Add($entry.FullName) }
+   }
+  }
+  foreach($member in $members) { if($member -ne $ownership) {Remove-Item -LiteralPath $member -Force} }
+  foreach($directory in ($folders | Where-Object {$_ -ne $ownedRoot} | Sort-Object Length -Descending)) {Remove-Item -LiteralPath $directory}
+  Remove-Item -LiteralPath $ownership -Force
+  Remove-Item -LiteralPath $ownedRoot
+ }
+ $ownedData=@('settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','owned-images.json.tmp','bundle-cache.json.tmp','browser-companion.key')
  foreach($name in $ownedData) { $file=Join-Path $m.DataRoot $name; if (Test-Path -LiteralPath $file -PathType Leaf) { Remove-Item -LiteralPath $file -Force } }
  $imageJournal=Join-Path $m.DataRoot 'owned-images.json'
  $images=Join-Path $m.DataRoot 'images'
@@ -136,7 +161,9 @@ Write-Output 'YoWidgets removed. Files, data and registrations verified absent.'
 function Show-CleanupResult([string]$message) {
  Add-Type -AssemblyName PresentationFramework
  $window=New-Object System.Windows.Window
- $window.Title='YoWidgets — удаление'
+ $window.Title='YoWidgets — uninstall'
+ $window.FontFamily=[Windows.Media.FontFamily]::new('Segoe UI Variable Text, Segoe UI')
+ $window.FontWeight=[Windows.FontWeights]::Medium
  $window.Width=560; $window.Height=260; $window.WindowStartupLocation='CenterScreen'
  $window.Background=[Windows.Media.BrushConverter]::new().ConvertFromString('#11151D')
  $panel=New-Object System.Windows.Controls.StackPanel
@@ -145,7 +172,7 @@ function Show-CleanupResult([string]$message) {
  $text.Text=$message; $text.TextWrapping='Wrap'; $text.FontSize=15; $text.Foreground=[Windows.Media.Brushes]::White
  $panel.Children.Add($text) | Out-Null
  $button=New-Object System.Windows.Controls.Button
- $button.Content='Закрыть'; $button.Padding=10; $button.Margin='0,20,0,0'
+ $button.Content='Close'; $button.Padding=10; $button.Margin='0,20,0,0'
  $button.Add_Click({ $window.Close() })
  $panel.Children.Add($button) | Out-Null
  $window.Content=$panel
@@ -153,8 +180,8 @@ function Show-CleanupResult([string]$message) {
 }
 try {
  Invoke-OwnedUninstall
- if ($ShowResult) { Show-CleanupResult 'YoWidgets удалён. Файлы, данные и регистрации проверены. Исходные фото и другие программы сохранены.' }
+ if ($ShowResult) { Show-CleanupResult 'YoWidgets was removed. Files, data and registrations were checked. Original photos and other apps were preserved.' }
 } catch {
- if ($ShowResult) { Show-CleanupResult ('Удаление не завершено: '+$_.Exception.Message); exit 1 }
+ if ($ShowResult) { Show-CleanupResult ('Uninstall incomplete: '+$_.Exception.Message); exit 1 }
  throw
 }

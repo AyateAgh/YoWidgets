@@ -4,6 +4,10 @@ namespace YoWidgets;
 internal sealed class WallpaperProvider : IDisposable
 {
     readonly IDesktopWallpaper? desktop;
+    readonly System.Windows.Threading.Dispatcher dispatcher = System.Windows.Application.Current.Dispatcher;
+    readonly System.Windows.Threading.DispatcherTimer changeDebounce;
+    bool disposed;
+    public event Action? Changed;
     // Only detached, widget-sized raster snapshots are retained, never full wallpaper frames.
     readonly Dictionary<string, BitmapSource> cache = [];
     readonly Dictionary<string, BitmapSource> movingCache = [];
@@ -11,11 +15,35 @@ internal sealed class WallpaperProvider : IDisposable
     public long CachedPixelBytes => cache.Values.Concat(movingCache.Values).Sum(b => (long)b.PixelWidth * b.PixelHeight * 4);
     public WallpaperProvider()
     {
+        changeDebounce = new(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => PublishChange(), dispatcher);
+        changeDebounce.Stop();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += PreferencesChanged;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
         try
         {
             desktop = (IDesktopWallpaper)Activator.CreateInstance(Type.GetTypeFromCLSID(new("C2CF3110-460E-4FC1-B9D0-8A1C0C9CC4BD"))!)!;
         }
         catch (Exception e) { App.Log("wallpaper", e); }
+    }
+    void PreferencesChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category is Microsoft.Win32.UserPreferenceCategory.Desktop or Microsoft.Win32.UserPreferenceCategory.General or Microsoft.Win32.UserPreferenceCategory.VisualStyle)
+            RequestRefresh();
+    }
+    void DisplayChanged(object? sender, EventArgs e) => RequestRefresh();
+    public void RequestRefresh()
+    {
+        // Shell notifications can arrive on another thread and in bursts, once per HWND.
+        if (disposed) return;
+        dispatcher.BeginInvoke(() => { if (!disposed) { changeDebounce.Stop(); changeDebounce.Start(); } });
+    }
+    void PublishChange()
+    {
+        changeDebounce.Stop();
+        if (disposed) return;
+        ClearCache(all: true);
+        Changed?.Invoke();
+        App.Trace("wallpaper", "Shell background changed; all wallpaper and movement snapshots invalidated");
     }
     public void ClearCache(bool all = false) { cache.Clear(); if(all) movingCache.Clear(); }
     public Brush GetBrush(RectD sample, bool checker = false, bool moving = false)
@@ -112,6 +140,11 @@ internal sealed class WallpaperProvider : IDisposable
     }
     public void Dispose()
     {
+        if (disposed) return;
+        disposed = true;
+        changeDebounce.Stop();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= PreferencesChanged;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplayChanged;
         ClearCache(all:true);
         if (desktop != null)
             Marshal.ReleaseComObject(desktop);

@@ -1,0 +1,703 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.0",
+  "publishedAt": "2026-10-21T00:00:00Z",
+  "items": [
+    {
+      "id": "pack-liquid",
+      "title": "Liquid Glass",
+      "description": "Soft light. A little depth.",
+      "category": "widgets",
+      "type": "pack",
+      "kind": "clock",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "collection",
+        "liquid glass"
+      ],
+      "packages": [],
+      "includes": [
+        "liquid-clock",
+        "liquid-calendar",
+        "liquid-weather",
+        "liquid-music",
+        "liquid-photo",
+        "liquid-focus",
+        "liquid-quick",
+        "liquid-notifications",
+        "liquid-assistant"
+      ],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "pack-glass",
+      "title": "Glass",
+      "description": "Clear surfaces. Quiet details.",
+      "category": "widgets",
+      "type": "pack",
+      "kind": "clock",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "collection",
+        "glass"
+      ],
+      "packages": [],
+      "includes": [
+        "glass-clock",
+        "glass-calendar",
+        "glass-weather",
+        "glass-music",
+        "glass-photo",
+        "glass-focus",
+        "glass-quick",
+        "glass-notifications",
+        "glass-assistant"
+      ],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-clock",
+      "title": "Clock",
+      "description": "Time, beautifully in view.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "clock",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "time",
+        "minimal",
+        "glass"
+      ],
+      "packages": [
+        "glass.clock"
+      ],
+      "includes": [],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-calendar",
+      "title": "Calendar",
+      "description": "Your month and local reminders.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "calendar",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "planning",
+        "productivity",
+        "glass"
+      ],
+      "packages": [
+        "glass.calendar"
+      ],
+      "includes": [],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-weather",
+      "title": "Weather",
+      "description": "Current conditions and the forecast.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "weather",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "weather",
+        "daily",
+        "glass"
+      ],
+      "packages": [
+        "glass.weather"
+      ],
+      "includes": [],
+      "permissions": [
+        "Weather requests share your saved city."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-music",
+      "title": "Music",
+      "description": "Your real Windows media controls.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "music",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "audio",
+        "media",
+        "glass"
+      ],
+      "packages": [
+        "glass.music"
+      ],
+      "includes": [],
+      "permissions": [
+        "Reads your Windows media session."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-photo",
+      "title": "Photos",
+      "description": "A little space for your favourites.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "photo",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "photos",
+        "personal",
+        "glass"
+      ],
+      "packages": [
+        "glass.photo"
+      ],
+      "includes": [],
+      "permissions": [
+        "Uses photos you choose."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-focus",
+      "title": "Focus",
+      "description": "A quiet timer for focused work.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "focus",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "productivity",
+        "time",
+        "glass"
+      ],
+      "packages": [
+        "glass.focus"
+      ],
+      "includes": [],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-quick",
+      "title": "Controls",
+      "description": "Volume and brightness, within reach.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "quick",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "system",
+        "controls",
+        "glass"
+      ],
+      "packages": [
+        "glass.quick"
+      ],
+      "includes": [],
+      "permissions": [
+        "Changes volume or brightness when you use its controls."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-notifications",
+      "title": "Notifications",
+      "description": "Keep useful updates in sight.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "notifications",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "system",
+        "daily",
+        "glass"
+      ],
+      "packages": [
+        "glass.notifications"
+      ],
+      "includes": [],
+      "permissions": [
+        "Requires explicit Windows notification access."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "glass-assistant",
+      "title": "Assistant",
+      "description": "A compact space to think and create.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "assistant",
+      "pack": "glass",
+      "collectionName": "Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "ai",
+        "productivity",
+        "glass"
+      ],
+      "packages": [
+        "glass.assistant"
+      ],
+      "includes": [],
+      "permissions": [
+        "Requires a connection you configure. Requests go to your selected service."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-clock",
+      "title": "Clock",
+      "description": "Time, beautifully in view.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "clock",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "time",
+        "minimal",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.clock"
+      ],
+      "includes": [],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-calendar",
+      "title": "Calendar",
+      "description": "Your month and local reminders.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "calendar",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "planning",
+        "productivity",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.calendar"
+      ],
+      "includes": [],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-weather",
+      "title": "Weather",
+      "description": "Current conditions and the forecast.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "weather",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "weather",
+        "daily",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.weather"
+      ],
+      "includes": [],
+      "permissions": [
+        "Weather requests share your saved city."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-music",
+      "title": "Music",
+      "description": "Your real Windows media controls.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "music",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "audio",
+        "media",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.music"
+      ],
+      "includes": [],
+      "permissions": [
+        "Reads your Windows media session."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-photo",
+      "title": "Photos",
+      "description": "A little space for your favourites.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "photo",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "photos",
+        "personal",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.photo"
+      ],
+      "includes": [],
+      "permissions": [
+        "Uses photos you choose."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-focus",
+      "title": "Focus",
+      "description": "A quiet timer for focused work.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "focus",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "productivity",
+        "time",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.focus"
+      ],
+      "includes": [],
+      "permissions": [],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-quick",
+      "title": "Controls",
+      "description": "Volume and brightness, within reach.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "quick",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "system",
+        "controls",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.quick"
+      ],
+      "includes": [],
+      "permissions": [
+        "Changes volume or brightness when you use its controls."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-notifications",
+      "title": "Notifications",
+      "description": "Keep useful updates in sight.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "notifications",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "system",
+        "daily",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.notifications"
+      ],
+      "includes": [],
+      "permissions": [
+        "Requires explicit Windows notification access."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    },
+    {
+      "id": "liquid-assistant",
+      "title": "Assistant",
+      "description": "A compact space to think and create.",
+      "category": "widgets",
+      "type": "widget",
+      "kind": "assistant",
+      "pack": "liquid",
+      "collectionName": "Liquid Glass",
+      "author": "Yo",
+      "version": "1.0.0",
+      "tags": [
+        "ai",
+        "productivity",
+        "liquid glass"
+      ],
+      "packages": [
+        "liquid.assistant"
+      ],
+      "includes": [],
+      "permissions": [
+        "Requires a connection you configure. Requests go to your selected service."
+      ],
+      "publishedAt": "2026-10-21T00:00:00Z"
+    }
+  ],
+  "packages": [
+    {
+      "id": "style.glass",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/style.glass.zip",
+      "sha256": "d6f25d9285b4ca95f53b4b43d9c9c156d90075b4beea295cac57f7e112813c9e",
+      "bytes": 190,
+      "dependencies": []
+    },
+    {
+      "id": "glass.clock",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.clock.zip",
+      "sha256": "24082e8912fc82f19322f86b35a886d48a338dae7595cbbdfadd3efab9a732f2",
+      "bytes": 171,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.calendar",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.calendar.zip",
+      "sha256": "4492d00d040cb59be37ca2e14d0b2cf5f2aab1ff2edce46552b81bde84abbaad",
+      "bytes": 174,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.weather",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.weather.zip",
+      "sha256": "d418b371c1851705e04625914bb58e993320f4383794c6e15f07643a72a2843e",
+      "bytes": 173,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.music",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.music.zip",
+      "sha256": "540f6f943f319366aa3de590d2802452c4efd6828cdac8917668063e0b5a3c14",
+      "bytes": 171,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.photo",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.photo.zip",
+      "sha256": "817c9295789e9113ba4adf08d1406835f1c6fc2b9cda3ce593364b489e6ad1d0",
+      "bytes": 171,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.focus",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.focus.zip",
+      "sha256": "88e6f16d0ed368c22e7fba3536e5fd6055bfd509f764b327dbacd4a1e98fcc8c",
+      "bytes": 168,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.quick",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.quick.zip",
+      "sha256": "debcf8e93ee7fa3dbc39ca20431d6880714619c2c7138fa4605f5e21e2c053c0",
+      "bytes": 171,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.notifications",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.notifications.zip",
+      "sha256": "2c3a2eecc036291b56386a369f22b7d567205945d77db306f56c1c524558940a",
+      "bytes": 176,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "glass.assistant",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/glass.assistant.zip",
+      "sha256": "521edcb6b2998b6dbfb9229d36082910c27fae235d3e9fc168ea41a3c488bd80",
+      "bytes": 175,
+      "dependencies": [
+        "style.glass"
+      ]
+    },
+    {
+      "id": "style.liquid",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/style.liquid.zip",
+      "sha256": "74ee2d0098a30b1f4522c9bbd64f571d3bf0a4ebb0ab21d1f318a57c452c58c3",
+      "bytes": 201,
+      "dependencies": []
+    },
+    {
+      "id": "liquid.clock",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.clock.zip",
+      "sha256": "51f27135e0812fdc6229148d21366aafc8ee82fd33e10d9cdc74af7f44c71652",
+      "bytes": 172,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.calendar",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.calendar.zip",
+      "sha256": "218639ad64f9d116d94cac1aa099114f51ad01a4c2ed01b64d82f2a645455ca0",
+      "bytes": 175,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.weather",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.weather.zip",
+      "sha256": "2386cbfc600554c70d5bc09b6ec2a83ac4f0af0ecc185de466c2e219ac57b43a",
+      "bytes": 174,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.music",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.music.zip",
+      "sha256": "1df1448be7a07ce44cc2260b510c61697fbc8c44a8503b6e7d09c99b88b55ad3",
+      "bytes": 172,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.photo",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.photo.zip",
+      "sha256": "dde176cb0e501638716d5d2a5659cd044ea2eb463ddac48db0103dfcdc986e28",
+      "bytes": 172,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.focus",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.focus.zip",
+      "sha256": "9359347d4dcc46c0f5bc290de1f63748e8c9fbd4605fe601f92f7eb619489464",
+      "bytes": 172,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.quick",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.quick.zip",
+      "sha256": "8ce0fcd4c411c01ee1517b10d657251414316d40abedbacb5b38398e8745193e",
+      "bytes": 172,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.notifications",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.notifications.zip",
+      "sha256": "f408131a190d7e2908939da9f19bcf8bc0660c8f40bf7b32ab0d2b9f25a7ad30",
+      "bytes": 180,
+      "dependencies": [
+        "style.liquid"
+      ]
+    },
+    {
+      "id": "liquid.assistant",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/AyateAgh/YoWidgets/main/catalog/v1/packages/liquid.assistant.zip",
+      "sha256": "137e12597e5b51b5f368b98ebcbf850f646d9407cba31d6d5f433d9eb7f4b1fd",
+      "bytes": 176,
+      "dependencies": [
+        "style.liquid"
+      ]
+    }
+  ]
+}

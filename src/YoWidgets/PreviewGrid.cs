@@ -8,7 +8,7 @@ internal sealed class PreviewGrid(string title) : Grid
     protected override AutomationPeer OnCreateAutomationPeer() => new PreviewPeer(this, title);
     sealed class PreviewPeer(PreviewGrid owner, string title) : FrameworkElementAutomationPeer(owner)
     {
-        protected override string GetNameCore() => "Предпросмотр: " + title;
+        protected override string GetNameCore() => "Preview: " + title;
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Image;
         protected override List<AutomationPeer>? GetChildrenCore() => null;
     }

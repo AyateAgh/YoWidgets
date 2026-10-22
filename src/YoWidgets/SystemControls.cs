@@ -36,7 +36,7 @@ internal sealed class SystemControls : IDisposable
             Muted = mute;
             Error = "";
         }
-        catch { Error = "Аудиоустройство недоступно"; }
+        catch { Error = "Audio device unavailable"; }
         try
         {
             Brightness = await Task.Run(() => { using var s = new ManagementObjectSearcher("root\\WMI", "SELECT * FROM WmiMonitorBrightness WHERE Active=True"); using var items = s.Get(); foreach (ManagementObject item in items) return (double?)Convert.ToDouble(item["CurrentBrightness"]); return null; });
@@ -60,7 +60,7 @@ internal sealed class SystemControls : IDisposable
             Volume = next;
             Changed?.Invoke();
         }
-        catch (Exception e) { Error = "Не удалось изменить громкость"; App.Log("volume", e); }
+        catch (Exception e) { Error = "Could not change volume"; App.Log("volume", e); }
     }
     public void SetMute()
     {
@@ -77,7 +77,7 @@ internal sealed class SystemControls : IDisposable
             Muted = !Muted;
             Changed?.Invoke();
         }
-        catch (Exception e) { Error = "Не удалось изменить mute"; App.Log("mute", e); }
+        catch (Exception e) { Error = "Could not change mute"; App.Log("mute", e); }
     }
     public async Task SetBrightnessAsync(double value)
     {
@@ -89,7 +89,7 @@ internal sealed class SystemControls : IDisposable
             Brightness = next;
             Changed?.Invoke();
         }
-        catch (Exception e) { Error = "Яркость не поддерживается этим дисплеем"; App.Log("brightness", e); }
+        catch (Exception e) { Error = "This display does not support brightness control"; App.Log("brightness", e); }
         finally { brightnessLock.Release(); }
     }
     static readonly object journalLock = new();
@@ -124,13 +124,13 @@ internal sealed class SystemControls : IDisposable
         {
             records = JsonSerializer.Deserialize<Dictionary<string, SystemChange>>(File.ReadAllText(file)) ?? [];
         }
-        catch { return "Журнал изменений повреждён. Автоматический откат остановлен."; }
+        catch { return "The change log is damaged. Automatic restore stopped."; }
         foreach (var pair in records.ToArray())
         {
             var change = pair.Value;
             if (change.Stage != "applied")
             {
-                issues.Add("Незавершённое изменение " + change.Kind + ": автоматический откат остановлен");
+                issues.Add("Incomplete change: " + change.Kind + ": automatic restore stopped");
                 continue;
             }
             try
@@ -139,7 +139,7 @@ internal sealed class SystemControls : IDisposable
                 {
                     if (endpoint == null || change.Device != deviceId)
                     {
-                        issues.Add("Аудиоустройство изменилось");
+                        issues.Add("The audio device has changed");
                         continue;
                     }
                     var ctx = Guid.Empty;
@@ -148,7 +148,7 @@ internal sealed class SystemControls : IDisposable
                         endpoint.GetMasterVolumeLevelScalar(out var actual);
                         if (!RollbackPolicy.CanRestore(change.Device, deviceId, actual * 100, change.Last))
                         {
-                            issues.Add("Громкость уже изменена вне YoWidgets");
+                            issues.Add("Volume has changed outside YoWidgets");
                             continue;
                         }
                         Marshal.ThrowExceptionForHR(endpoint.SetMasterVolumeLevelScalar((float)(change.Original / 100), ref ctx));
@@ -158,7 +158,7 @@ internal sealed class SystemControls : IDisposable
                         endpoint.GetMute(out var actual);
                         if ((actual ? 1 : 0) != change.Last)
                         {
-                            issues.Add("Mute уже изменён вне YoWidgets");
+                            issues.Add("Mute has changed outside YoWidgets");
                             continue;
                         }
                         Marshal.ThrowExceptionForHR(endpoint.SetMute(change.Original > 0, ref ctx));
@@ -169,18 +169,18 @@ internal sealed class SystemControls : IDisposable
                     var restored = await Task.Run(() => { using var search = new ManagementObjectSearcher("root\\WMI", "SELECT * FROM WmiMonitorBrightness WHERE Active=True"); using var items = search.Get(); foreach (ManagementObject item in items) { if (item["InstanceName"]?.ToString() != change.Device) continue; if (!RollbackPolicy.CanRestore(change.Device, item["InstanceName"]?.ToString() ?? "", Convert.ToDouble(item["CurrentBrightness"]), change.Last)) return false; using var methods = new ManagementObjectSearcher("root\\WMI", "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active=True"); using var methodItems = methods.Get(); foreach (ManagementObject method in methodItems) if (method["InstanceName"]?.ToString() == change.Device) return Convert.ToUInt32(method.InvokeMethod("WmiSetBrightness", new object[] { 0u, (byte)Math.Clamp(change.Original, 1, 100) })) == 0; } return false; });
                     if (!restored)
                     {
-                        issues.Add("Яркость изменилась или дисплей недоступен");
+                        issues.Add("Brightness has changed or the display is unavailable");
                         continue;
                     }
                 }
                 else
                 {
-                    issues.Add("Неизвестный тип изменения");
+                    issues.Add("Unknown change type");
                     continue;
                 }
                 records.Remove(pair.Key);
             }
-            catch { issues.Add("Не удалось восстановить " + change.Kind); }
+            catch { issues.Add("Could not restore " + change.Kind); }
         }
         File.WriteAllText(file, JsonSerializer.Serialize(records));
         return string.Join("; ", issues.Distinct());
@@ -236,7 +236,7 @@ internal static class StartupRegistration
         if (enabled)
         {
             if (old != null && old != Command)
-                throw new InvalidOperationException("Автозапуск YoWidgets уже принадлежит другой установке");
+                throw new InvalidOperationException("The YoWidgets startup entry belongs to another installation");
             k.SetValue("YoWidgets", Command);
         }
         else if (old == Command)

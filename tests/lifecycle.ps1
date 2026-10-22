@@ -95,4 +95,36 @@ if(-not $refused -or -not (Test-Path -LiteralPath $badJournal)) { throw 'Outside
 Remove-Item -LiteralPath $badJournal
 & (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $badBundleCase
 Write-Output 'PASS bundle cache root outside exact temp boundary rejected'
-Write-Output 'RESULT 10/10 lifecycle cases passed'
+$assistantCase=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+& (Join-Path $root 'scripts/install.ps1') -TestDestination $assistantCase -NoLaunch
+$assistantData=Join-Path $assistantCase 'data'
+foreach($cacheName in @('Assistant','assistant-cache','browser-profile','integrations')) {
+ $cachePath=Join-Path $assistantData $cacheName
+ New-Item -ItemType Directory -Path (Join-Path $cachePath 'nested') -Force | Out-Null
+ @{Product='YoWidgets.Native.v1';Path=$cachePath} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $cachePath '.yowidgets-owned.json')
+ Set-Content -LiteralPath (Join-Path $cachePath 'nested/fixture.bin') -Value 'synthetic owned bytes'
+}
+Set-Content -LiteralPath (Join-Path $assistantData 'browser-companion.key') -Value 'synthetic protected token'
+& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $assistantCase
+if(Test-Path -LiteralPath $assistantCase) {throw 'Assistant-owned data survived complete cleanup'}
+Write-Output 'PASS assistant roots and companion token removed through exact ownership records'
+$assistantLinkCase=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+& (Join-Path $root 'scripts/install.ps1') -TestDestination $assistantLinkCase -NoLaunch
+$assistantCache=Join-Path $assistantLinkCase 'data/assistant-cache'
+New-Item -ItemType Directory -Path $assistantCache | Out-Null
+@{Product='YoWidgets.Native.v1';Path=$assistantCache} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $assistantCache '.yowidgets-owned.json')
+$outsideCache=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $outsideCache | Out-Null
+$outsideNote=Join-Path $outsideCache 'keep.txt'
+Set-Content -LiteralPath $outsideNote -Value 'outside assistant cache'
+$cacheLink=Join-Path $assistantCache 'escape'
+New-Item -ItemType Junction -Path $cacheLink -Target $outsideCache | Out-Null
+$refused=$false
+try { & (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $assistantLinkCase } catch {$refused=$true}
+if(-not $refused -or -not (Test-Path -LiteralPath $outsideNote)) {throw 'Assistant cache junction was followed'}
+[IO.Directory]::Delete($cacheLink)
+& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $assistantLinkCase
+Remove-Item -LiteralPath $outsideNote
+Remove-Item -LiteralPath $outsideCache
+Write-Output 'PASS assistant cache refuses junction descendants and retries safely'
+Write-Output 'RESULT 12/12 lifecycle cases passed'

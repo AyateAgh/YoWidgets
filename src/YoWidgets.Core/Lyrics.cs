@@ -4,17 +4,28 @@ namespace YoWidgets.Core;
 
 public static partial class Lyrics
 {
+    public static int CurrentIndex(IReadOnlyList<LyricLine> lines, double seconds)
+    {
+        if (!double.IsFinite(seconds)) return -1;
+        int low = 0, high = lines.Count - 1, found = -1;
+        while (low <= high) { int mid = (low + high) / 2; if (lines[mid].Seconds <= seconds) { found = mid; low = mid + 1; } else high = mid - 1; }
+        return found;
+    }
     [GeneratedRegex(@"\[(\d+):(\d+(?:\.\d+)?)\]")] private static partial Regex Timestamp();
+    [GeneratedRegex(@"\[offset:([+-]?\d+)\]", RegexOptions.IgnoreCase)] private static partial Regex Offset();
+    [GeneratedRegex(@"<\d+:\d+(?:\.\d+)?>")] private static partial Regex WordTimestamp();
     public static List<LyricLine> Parse(string text)
     {
         var result = new List<LyricLine>();
+        var offsetMatch = Offset().Match(text);
+        double offset = offsetMatch.Success && double.TryParse(offsetMatch.Groups[1].Value, CultureInfo.InvariantCulture, out var milliseconds) ? milliseconds / 1000 : 0;
         foreach (var line in text.Split('\n'))
         {
             var matches = Timestamp().Matches(line);
-            var content = Timestamp().Replace(line, "").Trim();
+            var content = WordTimestamp().Replace(Timestamp().Replace(line, ""), "").Trim();
             foreach (Match m in matches)
                 if (double.TryParse(m.Groups[1].Value, CultureInfo.InvariantCulture, out var min) && double.TryParse(m.Groups[2].Value, CultureInfo.InvariantCulture, out var sec))
-                    result.Add(new(min * 60 + sec, content));
+                    result.Add(new(Math.Max(0, min * 60 + sec - offset), content));
         }
         return result.OrderBy(x => x.Seconds).ToList();
     }
