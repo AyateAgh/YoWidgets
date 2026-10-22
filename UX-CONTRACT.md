@@ -185,3 +185,5 @@ Maximize/restore accepts rapid repeated input and settles the latest target. Man
 Opening is visibility-driven: hidden documents retain a pending reveal until visible, and requested-page snapshots do not recreate its owner. Closing/minimizing during an outstanding preference write records hidden presentation without suspending that write. The unconnected browser route still displays its recovery message. Native window resizing suppresses simultaneous grid movement until final viewport geometry is stable.
 
 Window zoom animates a temporary local UI image while the real browser receives one final size. The overlay is passive, absent from the taskbar and cannot activate or intercept input. Render/capture failures preserve the latest geometry and future toggles. The optional rendering handshake is bounded inside the management host; it is never an engine dependency.
+
+The top caption and application name drag the window with the native Windows move loop. Minimize, maximize and close controls remain clickable and never initiate dragging. Caption double-click retains animated maximize/restore.

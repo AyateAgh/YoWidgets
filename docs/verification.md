@@ -1,4 +1,10 @@
-# YoWidgets 0.6.4 verification
+# YoWidgets 0.6.5 verification
+
+## Native caption dragging, 2026-10-22
+
+The packaged 0.6.4 caption failed an actual pointer drag. Its asynchronous RPC called WPF DragMove although mouse input belongs to the browser HWND. Version 0.6.5 enables WebView2 non-client regions before navigation and marks the caption as draggable, explicitly excluding controls. The old RPC mouse path is removed; native caption double-click retains the existing zoom controller.
+
+Frontend 33/33 and native platform 18/18 passed; the packaged build succeeded. Actual packaged WebView checks at 125% scale confirmed horizontal movement from both blank caption and application-name text, drag-to-restore from maximized, animated caption double-click, and minimize/reopen. The source audit found no secrets. These checks used an isolated profile; no user credentials were exercised.
 
 ## Compositor window transition, 2026-10-22
 

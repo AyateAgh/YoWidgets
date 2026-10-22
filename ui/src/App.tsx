@@ -312,16 +312,7 @@ export function App() {
         className="application"
         data-accent={state?.settings.interfaceAccent ?? "neutral"}
       >
-        <header
-          className="window-caption"
-          onMouseDown={(e) => {
-            if (e.button === 0 && e.target === e.currentTarget && native)
-              void rpc("window.drag").catch(() => {});
-          }}
-          onDoubleClick={(e) => {
-            if (e.target === e.currentTarget && native) toggleWindow();
-          }}
-        >
+        <header className="window-caption">
           <span>YoWidgets</span>
           {preview && <span className="preview-badge">Design preview</span>}
           <div className="window-controls">

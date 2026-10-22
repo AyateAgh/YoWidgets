@@ -39,6 +39,7 @@ internal sealed class ShellWindow:Window
             var environment=await CoreWebView2Environment.CreateAsync(null,profile);await view.EnsureCoreWebView2Async(environment);
             var core=view.CoreWebView2;core.SetVirtualHostNameToFolderMapping("yowidgets-ui.invalid",assets,CoreWebView2HostResourceAccessKind.DenyCors);
             core.Settings.AreDevToolsEnabled=false;core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDefaultScriptDialogsEnabled=false;core.Settings.IsStatusBarEnabled=false;core.Settings.IsZoomControlEnabled=false;
+            core.Settings.IsNonClientRegionSupportEnabled=true;
             core.Profile.PreferredColorScheme=CoreWebView2PreferredColorScheme.Dark;
             core.Profile.IsPasswordAutosaveEnabled=false;core.Profile.IsGeneralAutofillEnabled=false;
             core.NavigationStarting+=(_,e)=>{if(!e.Uri.StartsWith("https://yowidgets-ui.invalid/",StringComparison.Ordinal))e.Cancel=true;};
@@ -68,7 +69,6 @@ internal sealed class ShellWindow:Window
             if(method=="window.close"){if(args.TryGetProperty("discard",out var discard)&&discard.GetBoolean())draftDirty=false;if(draftDirty){Post(new{type="closeRequested"});Reply(id,new{accepted=true});return;}Reply(id,new{accepted=true});await Sleep(true);return;}
             if(method=="window.minimize"){layout.Settle(true);WindowState=WindowState.Minimized;Reply(id,new{accepted=true});return;}
             if(method=="window.maximize"){await layout.ToggleAsync();Reply(id,new{accepted=true});return;}
-            if(method=="window.drag"){if(GetAsyncKeyState(1)<0){layout.Settle();try{DragMove();}catch(InvalidOperationException){}}Reply(id,new{accepted=true});return;}
             if(method=="ui.persist"){SaveViewState(args);Reply(id,new{accepted=true});return;}
             if(method=="ui.dirty"){draftDirty=args.TryGetProperty("dirty",out var dirty)&&dirty.GetBoolean();Reply(id,new{accepted=true});return;}
             if(method=="ui.saving"){pendingWrites=args.TryGetProperty("saving",out var saving)&&saving.GetBoolean();Reply(id,new{accepted=true});if(!pendingWrites&&(!IsVisible||WindowState==WindowState.Minimized))_=Sleep(false);return;}
@@ -152,6 +152,8 @@ internal sealed class ShellWindow:Window
     internal void ShutdownHost(){if(exit)return;layout.Settle(true);layout.Save();exit=true;expiry.Stop();subscription?.Cancel();view?.Dispose();view=null;Close();}
     IntPtr Hook(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled)
     {
+        // Native draggable WebView regions keep the OS move loop; retain our zoom on double-click.
+        if(message==0xa3&&wParam.ToInt64()==2){handled=true;_=layout.ToggleAsync();return IntPtr.Zero;}
         if(message==ShellController.ShowMessage){handled=true;Wake();}else if(message==ShellController.ExitMessage){handled=true;ShutdownHost();}else if(message==ShellController.EvictMessage){handled=true;EvictHost();}return IntPtr.Zero;
     }
     Dictionary<string,string> ReadViewState()
@@ -175,5 +177,4 @@ internal sealed class ShellWindow:Window
         body.Children.Add(Ui.Button("Install Microsoft WebView2",async()=>{try{retry.IsEnabled=false;await RuntimeRecovery.Install();ShowBootstrap();await Initialize();}catch(Exception e){App.Log("runtime-install",e);ShowRecovery("WebView2 could not be installed. Check your connection or your administrator's policy, then retry.");}finally{retry.IsEnabled=true;}}));
         body.Children.Add(Ui.Gap(10));body.Children.Add(Ui.Button("Close",ShutdownHost));root.Children.Add(body);
     }
-    [DllImport("user32.dll")]static extern short GetAsyncKeyState(int key);
 }

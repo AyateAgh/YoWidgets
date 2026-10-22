@@ -88,6 +88,8 @@ h3 {
   background: var(--frame);
 }
 .window-caption {
+  app-region: drag;
+  -webkit-app-region: drag;
   height: 28px;
   display: flex;
   align-items: center;
@@ -100,11 +102,15 @@ h3 {
   pointer-events: none;
 }
 .window-controls {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
   margin-left: auto;
   display: flex;
   height: 28px;
 }
 .window-controls button {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
   width: 42px;
   background: transparent;
   display: grid;
