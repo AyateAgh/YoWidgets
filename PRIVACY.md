@@ -11,3 +11,5 @@ Interface sounds are generated locally and off by default. Management uses a sep
 Logs and settings may contain private paths or provider errors. Review them before sharing. Never put keys in issues, screenshots or the repository.
 
 Optional Auto accent reads a tiny local wallpaper thumbnail and derives a color. The file path and image never leave native code or get uploaded. The Weather target button makes one IP-city request to ipapi.co only when clicked; the service sees the network IP. Only a city string returns to management, and Save remains explicit. Custom ZIP imports are read locally and do not fetch manifest URLs or install executable modules.
+
+Window transitions may temporarily cache an image of the management WebView in process memory. This image is used only to animate the window, is not a desktop capture, is not written to disk or transmitted, and is released after the transition.

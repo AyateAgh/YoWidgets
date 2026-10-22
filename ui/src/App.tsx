@@ -66,7 +66,7 @@ export function App() {
   const rail = useRef<HTMLElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const initialized = useRef(false);
-  const [hostReady, setHostReady] = useState(preview);
+  const [hostReady, setHostReady] = useState(!native);
   const presented = useRef(false);
   const handledRequest = useRef("");
   const accept = useCallback((incoming: Snapshot) => {
@@ -123,6 +123,9 @@ export function App() {
     void applyAppearance(appearance);
   }, [appearance]);
   useEffect(() => {
+    if (native && state) void rpc("ui.transition.options", { transparent: appearance.transparent }).catch(() => {});
+  }, [appearance.transparent, Boolean(state)]);
+  useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
     const unsubscribe = onHost((event) => {
@@ -136,7 +139,11 @@ export function App() {
       if (event.type === "present")
         window.dispatchEvent(new Event("yo:present"));
       if (event.type === "windowTransition")
-        window.dispatchEvent(new Event("yo:window-transition"));
+        window.dispatchEvent(
+          new CustomEvent("yo:window-transition", {
+            detail: { active: event.active === true },
+          }),
+        );
       if (event.type === "connectionError")
         setError(event.error ?? "Connection interrupted.");
     });
@@ -165,6 +172,9 @@ export function App() {
     const surface = main.current?.parentElement;
     if (!main.current || !surface) return;
     return workspaceMotion(main.current, surface);
+  }, []);
+  useLayoutEffect(() => {
+    window.dispatchEvent(new Event("yo:layout-reset"));
   }, [page, Boolean(state)]);
   useEffect(() => {
     if ((!state && !error) || !hostReady || presented.current) return;
@@ -276,6 +286,17 @@ export function App() {
   };
   const section = page.startsWith("settings/") ? page.split("/")[1] : "general";
   const navPage = page.startsWith("settings") ? "settings" : page;
+  const toggleWindow = () => {
+    if (!native) return;
+    window.dispatchEvent(
+      new CustomEvent("yo:window-transition", { detail: { active: true } }),
+    );
+    void rpc("window.maximize").catch(() =>
+      window.dispatchEvent(
+        new CustomEvent("yo:window-transition", { detail: { active: false } }),
+      ),
+    );
+  };
   const pending =
     state?.jobs.filter((j) =>
       ["queued", "downloading", "verifying", "installing"].includes(j.stage),
@@ -298,8 +319,7 @@ export function App() {
               void rpc("window.drag").catch(() => {});
           }}
           onDoubleClick={(e) => {
-            if (e.target === e.currentTarget && native)
-              void rpc("window.maximize").catch(() => {});
+            if (e.target === e.currentTarget && native) toggleWindow();
           }}
         >
           <span>YoWidgets</span>
@@ -311,10 +331,7 @@ export function App() {
             >
               <Minus size={14} />
             </button>
-            <button
-              aria-label="Maximize or restore"
-              onClick={() => void rpc("window.maximize").catch(() => {})}
-            >
+            <button aria-label="Maximize or restore" onClick={toggleWindow}>
               <Maximize2 size={12} />
             </button>
             <button

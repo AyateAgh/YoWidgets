@@ -1,6 +1,6 @@
-# YoWidgets 0.6.3
+# YoWidgets 0.6.4
 
-The management window fits the Windows work area, keeps Settings reachable on short screens, remembers its size/state, and animates maximize/restore and reopening. Layout adapts down to compact windows; reduced motion is respected.
+The management window fits the Windows work area, keeps Settings reachable on short screens, remembers its size/state, and animates maximize/restore using a temporary local UI image while the browser lays out once. Reopening reveals the populated interface. Layout adapts down to compact windows; reduced motion is respected.
 
 ## New catalog and library
 

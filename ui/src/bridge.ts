@@ -5,6 +5,7 @@ type HostEvent = {
   error?: string;
   type?: string;
   state?: unknown;
+  active?: boolean;
 };
 type WebView = {
   postMessage: (data: unknown) => void;

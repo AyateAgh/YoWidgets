@@ -1,4 +1,15 @@
-# YoWidgets 0.6.3 verification
+# YoWidgets 0.6.4 verification
+
+## Compositor window transition, 2026-10-22
+
+The old live-resize regression reproduced 63 Window.SizeChanged events in one maximize. The new controller commits live bounds once and animates a fixed-HWND cached image instead. Native tests cover passive/no-activate overlay styles, fixed overlay bounds during WPF transform/fade, disposal after normal completion and cancellation, fallback after a simulated render failure, and maximized/restored/minimized/rapid-toggle geometry. Frontend checks cover hidden-to-visible deferred presentation, stable ownership across requested-page updates, reduced motion, native-resize suppression, initial observer callbacks and browser recovery.
+
+Frontend 33/33 and native platform 18/18 passed on the final source. The default full build also passed content platform 23/23, core 87/87, assistant transport 75/75 and the native visual/voice/composer/media/control/document/compositor suites. The final focused checks were rerun after compositor handoff and cancellation changes.
+
+The actual packaged 0.6.4 WebView host was checked in both directions at 125% desktop scale, including transparent-center PNG capture, close-to-tray/reopen and minimize/reopen. Completed transitions left no overlay window. Observed capture-to-handoff totals were 707–853 ms, including capture/decoding, initial overlay presentation, 250 ms motion, readiness and 100 ms fade; these timings are not frame-rate measurements. Opaque captures took 117–131 ms and a transparent capture took 266 ms. Native edge dragging was also checked at 852 × 480 logical pixels, with Settings reachable. A read-only review identified the cancelled live-frame task race; the completion source is now local and its task is observed on every exit.
+
+Physical mixed-DPI monitor transitions and sustained frame-rate acceptance across GPU classes remain unmeasured; no universal frame-rate guarantee is made.
+
 
 ## Window bounds and responsive motion, 2026-10-22
 

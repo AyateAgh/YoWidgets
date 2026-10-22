@@ -3056,3 +3056,19 @@ html[data-panel-clear="true"] .settings-nav button.selected {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+/* Arm while hidden so the first visible WebView frame is already at the reveal origin. */
+.application {
+  transform-origin: 50% 56%;
+}
+.application[data-presentation="prepared"] {
+  opacity: 0;
+  transform: translateY(12px) scale(0.965);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .application[data-presentation="prepared"] {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+}

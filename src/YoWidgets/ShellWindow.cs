@@ -12,14 +12,14 @@ internal sealed class ShellWindow:Window
     readonly Grid root=new(){Background=new SolidColorBrush(Color.FromRgb(8,8,8))};
     readonly ShellLifetime lifetime=new();readonly CancellationTokenSource stop=new();readonly DispatcherTimer expiry=new();
     readonly Dictionary<string,(string Path,string Hash)> imports=[];
-    readonly ShellWindowLayout layout;WindowState previousState=WindowState.Normal;
+    readonly ShellWindowLayout layout;readonly ShellSnapshotTransition snapshotTransition;WindowState previousState=WindowState.Normal;
     readonly Stopwatch startup=Stopwatch.StartNew();WebView2? view;CancellationTokenSource? subscription;bool ready,exit,draftDirty,pendingWrites;string profile="";DateTimeOffset maintained=DateTimeOffset.MinValue;
     internal ShellWindow()
     {
         Title="YoWidgets";Width=1180;Height=800;MinWidth=640;MinHeight=420;WindowStyle=WindowStyle.None;AllowsTransparency=true;Background=Brushes.Transparent;
         System.Windows.Shell.WindowChrome.SetWindowChrome(this,new(){CaptionHeight=0,ResizeBorderThickness=new Thickness(6),GlassFrameThickness=new Thickness(0),CornerRadius=new CornerRadius(24)});
-        layout=new(this,Post,ReadPlacement(),SavePlacement);
-        Content=root;ShowBootstrap();SourceInitialized+=(_,_)=>{var source=(HwndSource)PresentationSource.FromVisual(this);source.AddHook(Hook);var dark=1;Native.DwmSetWindowAttribute(Native.Handle(this),20,ref dark,4);var corner=2;Native.DwmSetWindowAttribute(Native.Handle(this),33,ref corner,4);};
+        snapshotTransition=new(this,()=>view);layout=new(this,Post,ReadPlacement(),SavePlacement,snapshotTransition.Run);
+        Content=root;ShowBootstrap();SourceInitialized+=(_,_)=>{var source=(HwndSource)PresentationSource.FromVisual(this);source.AddHook(Hook);var dark=1;Native.DwmSetWindowAttribute(Native.Handle(this),20,ref dark,4);var corner=1;Native.DwmSetWindowAttribute(Native.Handle(this),33,ref corner,4);var noBorder=unchecked((int)0xfffffffe);Native.DwmSetWindowAttribute(Native.Handle(this),34,ref noBorder,4);};
         Loaded+=async(_,_)=>await Initialize();Closing+=ClosingWindow;Closed+=(_,_)=>{stop.Cancel();subscription?.Cancel();view?.Dispose();expiry.Stop();Application.Current.Shutdown();};
         StateChanged+=(_,_)=>{var before=previousState;previousState=WindowState;if(WindowState==WindowState.Minimized)_=Sleep(false);else if(before==WindowState.Minimized&&IsVisible&&ready)Wake();};
         expiry.Interval=TimeSpan.FromMinutes(15);expiry.Tick+=(_,_)=>{expiry.Stop();if(lifetime.ShouldExit(DateTimeOffset.UtcNow))EvictHost();};
@@ -35,7 +35,7 @@ internal sealed class ShellWindow:Window
         {
             _=CoreWebView2Environment.GetAvailableBrowserVersionString();
             var assets=ShellAssets.Ensure();profile=Path.Combine(App.OwnedDirectory("Cache"),"UI");
-            view=new WebView2{DefaultBackgroundColor=System.Drawing.Color.Transparent,Visibility=Visibility.Hidden,Margin=new Thickness(6)};root.Children.Add(view);
+            view=new WebView2{DefaultBackgroundColor=System.Drawing.Color.Transparent,Visibility=Visibility.Hidden,Margin=new Thickness(4)};root.Children.Add(view);
             var environment=await CoreWebView2Environment.CreateAsync(null,profile);await view.EnsureCoreWebView2Async(environment);
             var core=view.CoreWebView2;core.SetVirtualHostNameToFolderMapping("yowidgets-ui.invalid",assets,CoreWebView2HostResourceAccessKind.DenyCors);
             core.Settings.AreDevToolsEnabled=false;core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDefaultScriptDialogsEnabled=false;core.Settings.IsStatusBarEnabled=false;core.Settings.IsZoomControlEnabled=false;
@@ -62,6 +62,8 @@ internal sealed class ShellWindow:Window
                 ready=true;lifetime.Show();
                 Reply(id,new{ready=true,viewState=ReadViewState()});Subscribe();App.Trace("shell-ready",$"firstReadyMs={startup.Elapsed.TotalMilliseconds:F1}; pid={Environment.ProcessId}");return;
             }
+            if(method=="ui.transition.ready"){snapshotTransition.Ready(PlatformSettings.Text(args,"token"));return;}
+            if(method=="ui.transition.options"){snapshotTransition.Transparent=args.TryGetProperty("transparent",out var transparent)&&transparent.ValueKind==JsonValueKind.True;Reply(id,new{accepted=true});return;}
             if(method=="ui.present"){foreach(var child in root.Children.Cast<UIElement>().Where(c=>!ReferenceEquals(c,view)).ToArray())root.Children.Remove(child);root.Background=new SolidColorBrush(Color.FromArgb(1,8,8,8));if(IsVisible&&WindowState!=WindowState.Minimized)view!.Visibility=Visibility.Visible;Post(new{type="present"});Reply(id,new{accepted=true});return;}
             if(method=="window.close"){if(args.TryGetProperty("discard",out var discard)&&discard.GetBoolean())draftDirty=false;if(draftDirty){Post(new{type="closeRequested"});Reply(id,new{accepted=true});return;}Reply(id,new{accepted=true});await Sleep(true);return;}
             if(method=="window.minimize"){layout.Settle(true);WindowState=WindowState.Minimized;Reply(id,new{accepted=true});return;}
@@ -108,7 +110,7 @@ internal sealed class ShellWindow:Window
     async Task Sleep(bool hide)
     {
         layout.Settle(true);layout.Save();
-        if(pendingWrites){if(hide)Hide();expiry.Stop();return;}
+        if(pendingWrites){lifetime.Hide(DateTimeOffset.UtcNow);if(hide)Hide();expiry.Stop();if(view?.CoreWebView2 is {} pendingCore)try{await pendingCore.ExecuteScriptAsync("window.dispatchEvent(new Event('yo:prepare-present'));").WaitAsync(TimeSpan.FromSeconds(2));}catch(Exception e)when(e is COMException or InvalidOperationException or TimeoutException){App.Log("shell-prepare",e);}return;}
         if(exit)return;var generation=lifetime.Hide(DateTimeOffset.UtcNow);subscription?.Cancel();expiry.Stop();if(!draftDirty)expiry.Start();
         if(hide)Hide();if(view?.CoreWebView2==null){EvictHost();return;}
         var core=view.CoreWebView2;
