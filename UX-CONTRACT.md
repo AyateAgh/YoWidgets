@@ -164,8 +164,14 @@ Control confirmation: Settings → Live voice → Ask before browser and app con
 
 Game input uses fresh screenshots and the selected foreground window only. Right/middle clicks and bounded physical key holds are available; cancelled or failed holds release every pressed key. Real-time game skill and exclusive-fullscreen compatibility are not implied. The isolated fixture checks actual native mouse/key events, hold duration, cancellation release and excluded system shortcuts; actual Dota gameplay remains unverified.
 
-## Catalog refinement � 0.6.1
+## Catalog refinement — 0.6.1
 
 Home's Install/Update/Add/Installed actions come from canonical catalog.ts numeric version comparisons; a newer installed version is never downgraded by an Update affordance. Legacy unchanged built-in resources have content version 1.0.0, independently of old app version 0.5.2. Library's primary card action is desktop visibility; off saves the enabled instance group and on restores those exact instances/positions. Completed Downloads go to Library; Clear finished removes terminal history only.
 
 Custom ZIP imports use the native picker, a metadata review and explicit Import. The schema is documented in docs/custom-packages.md; declarative resource validation remains native. Weather location is a one-shot approximate city lookup through ipapi.co and fills an unsaved city for review. It never saves or refreshes weather without the existing Save action. Accent and location failures retain manual alternatives.
+
+## Appearance preferences
+
+Dark, Light and Custom are persistent management themes. The Custom dialog is a local unsaved draft with keyboard/pointer color controls and one optional second color. Apply commits the entire appearance atomically; Cancel leaves the saved theme intact. Navigation/close draft protection uses the shared unsaved-settings contract. Invalid colors or modes never replace existing preferences. Theme and transparency preserve independent accent and widget settings.
+
+Theme transitions originate at the selected tile and do not change layout, focus or scroll. Saving acknowledgements retain the active transition. Rapid selections settle on the latest intent. Reduced motion applies without circular/fade animation. Theme sounds obey the existing optional interface-sound policy. The center transparency switch affects only paint; scrolling, card controls and chrome remain interactive, with local readable backplates where needed.

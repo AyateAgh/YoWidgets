@@ -9,14 +9,14 @@ internal sealed class PlatformSettings(WidgetManager manager,InterfaceAccent? ac
         var s=Settings;
         return new {
             s.City,s.Analog,s.Fahrenheit,s.Seconds,s.Hour24,s.Topmost,s.InterfaceSounds,s.InterfaceVolume,s.InterfaceTheme,s.InterfaceAccent,accentColor=accent?.Resolve(s.InterfaceAccent)??"#F5F5F5",
-            startup=StartupRegistration.Enabled,s.LyricsEnabled,s.NotificationsEnabled,notificationStatus=manager.Data.Notifications.Status,
+            appearance=s.InterfaceAppearance,startup=StartupRegistration.Enabled,s.LyricsEnabled,s.NotificationsEnabled,notificationStatus=manager.Data.Notifications.Status,
             s.AiAskBeforeControl,s.AiProcessText,voice=s.VoiceCall,
             voiceChoices=new {gemini=VoiceCallOptions.Voices("Gemini"),openai=VoiceCallOptions.Voices("OpenAI")},
             chatProvider=s.AiProvider,chatModel=s.AiModel,
             chat=AssistantProtocol.Providers.Select(p=>new {provider=p,model=ChatConnections.Find(s,p)?.Model??(s.AiProvider==p?s.AiModel:AssistantProtocol.DefaultModel(p)),connected=ChatConnections.Find(s,p)!=null||s.AiProvider==p&&!string.IsNullOrWhiteSpace(s.AiKeyProtected)}).ToArray(),
             generation=GenerationConnections.Categories.Select(c=>{var g=GenerationConnections.Get(s,c.Id);return new {id=c.Id,title=c.Title,g.Mode,g.Provider,g.Model,g.Voice,keySaved=!string.IsNullOrEmpty(g.KeyProtected),providers=GenerationConnections.Providers(c.Id)};}).ToArray(),
             mediaSource=manager.Data.Media.SelectedSource,mediaSources=manager.Data.Media.Sources,bridgeStatus=manager.Data.Media.BrowserBridgeStatus,
-            canUninstall=Cleanup.IsInstalled,version="0.6.1",platform=Environment.OSVersion.VersionString
+            canUninstall=Cleanup.IsInstalled,version="0.6.2",platform=Environment.OSVersion.VersionString
         };
     }
     internal async Task<object> Execute(string method,JsonElement args,CancellationToken token)
@@ -26,6 +26,7 @@ internal sealed class PlatformSettings(WidgetManager manager,InterfaceAccent? ac
         {
             case "settings.general":
                 Mutate(()=> {
+                    if(args.TryGetProperty("appearance",out var appearance)){var chosen=JsonSerializer.Deserialize<AppearancePreferences>(appearance,CatalogJson.Options);if(chosen?.Valid!=true)throw new InvalidOperationException("Choose Dark, Light or Custom with one or two valid hex colors.");s.InterfaceAppearance=chosen.Normalized();s.InterfaceTheme=chosen.Mode;}
                     if(args.TryGetProperty("city",out var city)){var text=city.GetString()?.Trim()??"";if(text.Length is <1 or >120)throw new InvalidOperationException("Enter a city name of 1–120 characters.");s.City=text;}
                     if(args.TryGetProperty("interfaceAccent",out var requestedAccent)){var mode=requestedAccent.GetString()??"";if(mode!="auto"&&!InterfaceAccent.Presets.ContainsKey(mode))throw new InvalidOperationException("Choose an available accent color.");s.InterfaceAccent=mode;}
                     SetBool(args,"analog",v=>s.Analog=v);SetBool(args,"fahrenheit",v=>s.Fahrenheit=v);SetBool(args,"seconds",v=>s.Seconds=v);SetBool(args,"hour24",v=>s.Hour24=v);SetBool(args,"topmost",v=>s.Topmost=v);

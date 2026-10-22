@@ -1,4 +1,10 @@
-# YoWidgets 0.6.1 verification
+# YoWidgets 0.6.2 verification
+
+## Appearance, 2026-10-22
+
+Frontend 23/23, content platform 22/22, native platform 14/14, core 87/87 and assistant 75/75 passed in the full default Windows build, including native visual suites. Appearance tests cover atomic native validation/persistence, one/two-color selection, transparency preserving the theme, color conversion, readable gradient endpoint text, object preference acknowledgements and preserving circular transitions across native acknowledgements.
+
+Actual isolated host checks verified Light rendering and circular reveal, local custom color controls, adding/applying a second color, persistent custom mode/colors/transparency, and actual content underneath the transparent center with functioning controls. The theme audio command was exercised through the existing native sound policy. A one-pass independent review found no Critical/P1 issue and two P2 issues: recovery losing its opaque backdrop and weak Light keyboard focus. Both are corrected. Native bootstrap/recovery remains opaque and focus uses the semantic text color. GPU diversity and long-run measurements remain unmeasured.
 
 ## Catalog polish, 2026-10-22
 
@@ -35,3 +41,7 @@ Hosted CI runs deterministic frontend/core/transport/platform checks with `-Skip
 Hardware mixed-DPI transitions at 100/150/200%, monitor removal, missing-runtime installation under restrictive policy, hour-long process/GPU/DWM measurements and 100-cycle WebView suspend/resume remain unmeasured. Draft eviction policy is covered by code tests; live suspension-failure injection has not been performed. Native Windows notification identity and external services depend on the user's permissions and configuration.
 
 The executable is self-contained for .NET, but management needs WebView2 Evergreen. It is not publisher-code-signed. SHA-256 package validation is not a publisher signature. No enterprise certification, universal application/game compatibility, fixed RAM usage or zero-latency claim is made.
+
+A new empty modern content registry is persisted at first startup, so saving preferences cannot make a later launch look like a legacy profile. The restart/migration regression failed before this fix and then passed.
+
+Final executable acceptance also passed an actual two-process fresh-profile restart: no auto-installed packs, custom colors and transparency preserved. The layered host suspended successfully and restored its Light Home view from the tray. Owned installation/removal remained 15/15.

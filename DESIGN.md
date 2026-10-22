@@ -259,8 +259,16 @@ AiAskBeforeControl is the single saved browser/desktop confirmation policy, defa
 
 DesktopAgentTools owns left/right/middle clicks and scan-code keyboard input (letters, digits, F1–F12, navigation, Ctrl/Shift). Physical holds are bounded to 2000 ms, monitor focus in 25 ms slices and always send reverse-order key-up on cancellation/failure. System shortcuts are excluded. Accessibility failures in custom-rendered apps retain screenshot inspection; failed/black PrintWindow capture can use the visible foreground region after occlusion checks. Windowed/borderless capture is preferable. These are discrete observed actions, not a low-latency game-playing engine: no Dota 2 match, reflex performance or game/anti-cheat compatibility is claimed.
 
-## Current management UI � 0.6.1
+## Current management UI — 0.6.1
 
 The React management shell supersedes the old native management navigation/palette above. Canonical base tokens are design/tokens.json, generated into ui/src/tokens.css and native ThemeTokens.cs: 72 DIP black rail, #080808 frame, #101010 background, #181818 surfaces, #F5F5F5 text and restrained liquid selection. Segoe UI Variable remains the local system font. Accent presets are owned by design/accents.json, consumed by both UI and native InterfaceAccent; they affect selection/indicators and subtle outlines, not widget materials. Neutral is default. User-requested Auto samples a small local wallpaper thumbnail solely for its color, with Windows-color fallback; the live desktop widget backdrop never uses this image. No path or pixels reach React or the network.
 
 Settings switches respond optimistically, keep their geometry and keyboard focus, serialize each preference and roll back errors. Nearby controls remain available. Previews animate only while hovered/focused and visible, never at idle, and honor Reduced Motion.
+
+## Management appearance 0.6.2
+
+The chooser owns three adjacent previews: Dark, Light and an empty Custom tile. ThemePicker uses the shared Radix Modal, a saturation/brightness plane, hue slider and HEX field. Add second color creates a diagonal two-stop gradient with Remove and explicit Apply/Cancel. No OS color dialog or external color service is used. Black remains the default.
+
+Palette ownership is design/tokens.json for Dark and design/light-theme.json for Light. appearance.ts adapts these semantic roles to runtime CSS and derives restrained custom tints for readable text. Widget previews and desktop widget materials keep their own colors. Chrome, cards, forms, menus and dialogs share management roles; accents remain independent.
+
+The center paint layer sits outside the existing content scroller. Its switch fades/scales only this layer; chrome and card content remain visible and interactive. The native layered host and transparent WebView reveal actual desktop/window content without wallpaper capture. A minimum-alpha native input surface keeps interactions inside management. Theme changes use a 520 ms circular View Transition from the selected tile. Unsupported/hidden/reduced-motion contexts commit directly; equivalent native acknowledgements cannot interrupt a reveal. The native theme sound follows existing sound, volume, voice and fullscreen policy.

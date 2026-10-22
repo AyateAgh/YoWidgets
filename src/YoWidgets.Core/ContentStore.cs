@@ -34,6 +34,7 @@ public sealed class ContentStore
             { RecoveryMessage = "The content registry could not be read. A backup was checked; reinstall missing items."; }
         }
     }
+    public void EnsureRegistry(){if(!File.Exists(statePath))Save(Installed.ToList());}
     public bool IsInstalled(string id) { lock (stateLock) return installed.Any(i => i.Item.Id == id); }
     public WidgetDefinition ReadWidget(string id)
     {

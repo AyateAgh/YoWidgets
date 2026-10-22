@@ -84,7 +84,7 @@ internal sealed class App : System.Windows.Application
         Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => { Manager.RevealWidgets(); ReleaseUnusedImages(); });
         if (args.Contains("--optics-test"))
             Manager.ShowOpticsTest();
-        Trace("startup", $"Version 0.6.1; WPF tier {RenderCapability.Tier >> 16}; OS {Environment.OSVersion.Version}");
+        Trace("startup", $"Version 0.6.2; WPF tier {RenderCapability.Tier >> 16}; OS {Environment.OSVersion.Version}");
     }
     public void ShowShell()
     {

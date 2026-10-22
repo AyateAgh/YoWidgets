@@ -36,6 +36,8 @@ import { CatalogView, ItemDetails } from "./CatalogView";
 import { LibraryView } from "./LibraryView";
 import { DownloadsView } from "./DownloadsView";
 import { SettingsView } from "./SettingsView";
+import { usePreferences } from "./usePreferences";
+import { applyAppearance, defaultAppearance } from "./appearance";
 
 export function App() {
   const [state, setState] = useState<Snapshot | null>(
@@ -109,6 +111,14 @@ export function App() {
     },
     [refresh],
   );
+  const preferences = usePreferences(
+    state?.settings ?? previewState.settings,
+    run,
+  );
+  const appearance = preferences.value.appearance ?? defaultAppearance;
+  useLayoutEffect(() => {
+    void applyAppearance(appearance);
+  }, [appearance]);
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -343,88 +353,95 @@ export function App() {
               </Hint>
             </div>
           </aside>
-          <main className="main-content" ref={main} id="main-content">
-            {error && (
-              <div className="error-banner" role="alert">
-                <span>{error}</span>
-                <button aria-label="Dismiss error" onClick={() => setError("")}>
-                  <X size={15} />
-                </button>
-              </div>
-            )}
-            {state?.snoozed && (
-              <div className="notice-banner snooze-banner">
-                <Moon size={15} />
-                <span>Widgets are paused</span>
-                <button onClick={() => void run("app.snooze").catch(() => {})}>
-                  Resume
-                </button>
-              </div>
-            )}
-            {!state ? (
-              <div className="connecting-state">
-                <span className="brand-ring" />
-                <h1>Your space is opening</h1>
-                <p>
-                  {error
-                    ? "The native engine is not connected."
-                    : "Connecting to your desktop"}
-                </p>
-                {native && (
-                  <Button
-                    onClick={() =>
-                      void refresh().catch((e) => setError(e.message))
-                    }
+          <div className="content-surface">
+            <main className="main-content" ref={main} id="main-content">
+              {error && (
+                <div className="error-banner" role="alert">
+                  <span>{error}</span>
+                  <button
+                    aria-label="Dismiss error"
+                    onClick={() => setError("")}
                   >
-                    Retry connection
-                  </Button>
-                )}
-              </div>
-            ) : page === "home" ? (
-              <CatalogView
-                state={state}
-                filters={filters}
-                setFilters={setFilters}
-                run={run}
-                onOpen={setSelected}
-              />
-            ) : page === "library" ? (
-              <LibraryView
-                onDownloads={() => navigate("downloads")}
-                preferences={library}
-                setPreferences={setLibrary}
-                state={state}
-                run={run}
-                onBrowse={() => navigate("home")}
-                onOpen={setSelected}
-              />
-            ) : page === "downloads" ? (
-              <DownloadsView
-                onLibrary={() => {
-                  setLibrary({
-                    ...library,
-                    query: "",
-                    pack: "all",
-                    tab: "installed",
-                  });
-                  navigate("library");
-                }}
-                state={state}
-                run={run}
-                onBrowse={() => navigate("home")}
-              />
-            ) : (
-              <SettingsView
-                key={settingsEpoch}
-                state={state}
-                section={section}
-                setSection={(value) => navigate("settings/" + value)}
-                run={run}
-                onDirty={setDirty}
-                requestedProvider={provider}
-              />
-            )}
-          </main>
+                    <X size={15} />
+                  </button>
+                </div>
+              )}
+              {state?.snoozed && (
+                <div className="notice-banner snooze-banner">
+                  <Moon size={15} />
+                  <span>Widgets are paused</span>
+                  <button
+                    onClick={() => void run("app.snooze").catch(() => {})}
+                  >
+                    Resume
+                  </button>
+                </div>
+              )}
+              {!state ? (
+                <div className="connecting-state">
+                  <span className="brand-ring" />
+                  <h1>Your space is opening</h1>
+                  <p>
+                    {error
+                      ? "The native engine is not connected."
+                      : "Connecting to your desktop"}
+                  </p>
+                  {native && (
+                    <Button
+                      onClick={() =>
+                        void refresh().catch((e) => setError(e.message))
+                      }
+                    >
+                      Retry connection
+                    </Button>
+                  )}
+                </div>
+              ) : page === "home" ? (
+                <CatalogView
+                  state={state}
+                  filters={filters}
+                  setFilters={setFilters}
+                  run={run}
+                  onOpen={setSelected}
+                />
+              ) : page === "library" ? (
+                <LibraryView
+                  onDownloads={() => navigate("downloads")}
+                  preferences={library}
+                  setPreferences={setLibrary}
+                  state={state}
+                  run={run}
+                  onBrowse={() => navigate("home")}
+                  onOpen={setSelected}
+                />
+              ) : page === "downloads" ? (
+                <DownloadsView
+                  onLibrary={() => {
+                    setLibrary({
+                      ...library,
+                      query: "",
+                      pack: "all",
+                      tab: "installed",
+                    });
+                    navigate("library");
+                  }}
+                  state={state}
+                  run={run}
+                  onBrowse={() => navigate("home")}
+                />
+              ) : (
+                <SettingsView
+                  key={settingsEpoch}
+                  state={state}
+                  section={section}
+                  setSection={(value) => navigate("settings/" + value)}
+                  run={run}
+                  onDirty={setDirty}
+                  requestedProvider={provider}
+                />
+              )}
+            </main>
+          </div>
         </div>
         {toast && (
           <div className="toast" role="status">

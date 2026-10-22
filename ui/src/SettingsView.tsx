@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Check,
-  CheckCircle2,
   Eye,
   EyeOff,
   Globe,
@@ -26,6 +25,8 @@ import { Button, Dropdown, Modal, Section, ToggleRow } from "./primitives";
 import { rpc } from "./bridge";
 import { AccentPicker } from "./AccentPicker";
 import { usePreferences } from "./usePreferences";
+import { ThemePicker } from "./ThemePicker";
+import { defaultAppearance } from "./appearance";
 
 const settingsTabs = [
   ["general", "General"],
@@ -79,6 +80,10 @@ export function SettingsView({
     [section, onDirty],
   );
   const { value: s, save, pending } = usePreferences(state.settings, run);
+  const themeDirty = useCallback(
+    (value: boolean) => markDirty("theme", value),
+    [markDirty],
+  );
   const [confirm, setConfirm] = useState("");
   const [restore, setRestore] = useState(false);
   return (
@@ -181,21 +186,11 @@ export function SettingsView({
           {section === "appearance" && (
             <>
               <Section title="Theme">
-                <div className="theme-options">
-                  <div className="theme-tile selected">
-                    <div className="theme-mini">
-                      <i />
-                      <span>
-                        <b />
-                        <b />
-                        <b />
-                      </span>
-                    </div>
-                    <span>
-                      Dark <CheckCircle2 size={16} />
-                    </span>
-                  </div>
-                </div>
+                <ThemePicker
+                  value={s.appearance ?? defaultAppearance}
+                  onChange={(value) => void save("appearance", value)}
+                  onDirty={themeDirty}
+                />
               </Section>
               <Section title="Accent color">
                 <AccentPicker
@@ -215,6 +210,20 @@ export function SettingsView({
                   </span>
                   <Monitor size={18} />
                 </div>
+              </Section>
+              <Section title="Workspace">
+                <ToggleRow
+                  label="Transparent content background"
+                  description="Keep cards visible and let your desktop show through the center."
+                  checked={(s.appearance ?? defaultAppearance).transparent}
+                  busy={pending.appearance}
+                  onChange={(transparent) =>
+                    void save("appearance", {
+                      ...(s.appearance ?? defaultAppearance),
+                      transparent,
+                    })
+                  }
+                />
               </Section>
             </>
           )}

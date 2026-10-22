@@ -1,10 +1,10 @@
-# YoWidgets 0.6.1
+# YoWidgets 0.6.2
 
 ## New catalog and library
 
 **Home → Install** downloads a widget or collection. **Library → desktop switch** hides/restores its saved instances and positions; details offer additional instances and configuration. Update appears only for a newer catalog version. New profiles have no installed packs; existing widgets migrate locally with their settings. Search, type/collection/status filters, details and real download progress are included. Library and Settings work offline.
 
-Library supports [local custom package ZIPs](docs/custom-packages.md), with metadata review before installation. Downloads separate cancellation from navigation to installed content, and Clear finished removes history only. Settings switches update immediately while writes remain serialized across navigation. Appearance offers eight subtle accents and opt-in local wallpaper matching. The weather target button can fill an editable city using ipapi.co; Save & refresh remains explicit. Hover previews animate only while visible and respect reduced motion.
+Library supports [local custom package ZIPs](docs/custom-packages.md), with metadata review before installation. Downloads separate cancellation from navigation to installed content, and Clear finished removes history only. Settings switches update immediately while writes remain serialized across navigation. Appearance offers Dark, Light and a custom one- or two-color theme, circular transitions, optional theme sounds, a transparent center, eight accents and opt-in local wallpaper matching. The weather target button can fill an editable city using ipapi.co; Save & refresh remains explicit. Hover previews animate only while visible and respect reduced motion.
 
 The management interface uses an original empty-ring Yo mark, black 72 DIP rail and liquid selection. It runs separately from the native widget engine, sleeps when hidden and normally exits after 15 minutes. Unsaved settings drafts remain in memory until saved or discarded. Interface sounds are optional and off by default. Pets, taskbars, docks and system effects have reserved categories; their engines are not shipped yet.
 

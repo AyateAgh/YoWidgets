@@ -15,7 +15,7 @@ internal sealed class ShellWindow:Window
     readonly Stopwatch startup=Stopwatch.StartNew();WebView2? view;CancellationTokenSource? subscription;bool ready,exit,draftDirty,pendingWrites;string profile="";DateTimeOffset maintained=DateTimeOffset.MinValue;
     internal ShellWindow()
     {
-        Title="YoWidgets";Width=1180;Height=800;MinWidth=860;MinHeight=600;WindowStartupLocation=WindowStartupLocation.CenterScreen;WindowStyle=WindowStyle.None;Background=root.Background;
+        Title="YoWidgets";Width=1180;Height=800;MinWidth=860;MinHeight=600;WindowStartupLocation=WindowStartupLocation.CenterScreen;WindowStyle=WindowStyle.None;AllowsTransparency=true;Background=Brushes.Transparent;
         System.Windows.Shell.WindowChrome.SetWindowChrome(this,new(){CaptionHeight=0,ResizeBorderThickness=new Thickness(6),GlassFrameThickness=new Thickness(0),CornerRadius=new CornerRadius(24)});
         Content=root;ShowBootstrap();SourceInitialized+=(_,_)=>{var source=(HwndSource)PresentationSource.FromVisual(this);source.AddHook(Hook);var dark=1;Native.DwmSetWindowAttribute(Native.Handle(this),20,ref dark,4);var corner=2;Native.DwmSetWindowAttribute(Native.Handle(this),33,ref corner,4);};
         Loaded+=async(_,_)=>await Initialize();Closing+=ClosingWindow;Closed+=(_,_)=>{stop.Cancel();subscription?.Cancel();view?.Dispose();expiry.Stop();Application.Current.Shutdown();};
@@ -24,6 +24,7 @@ internal sealed class ShellWindow:Window
     }
     void ShowBootstrap()
     {
+        root.Background=new SolidColorBrush(Color.FromRgb(8,8,8));
         root.Children.Clear();var stack=Ui.Stack(Ui.Text("◯",46,weight:FontWeights.Light),Ui.Gap(16),Ui.Text("Yo",22,weight:FontWeights.SemiBold),Ui.Gap(10),Ui.Text("Opening your space",12,"Muted"));stack.HorizontalAlignment=HorizontalAlignment.Center;stack.VerticalAlignment=VerticalAlignment.Center;root.Children.Add(stack);
     }
     async Task Initialize()
@@ -32,7 +33,7 @@ internal sealed class ShellWindow:Window
         {
             _=CoreWebView2Environment.GetAvailableBrowserVersionString();
             var assets=ShellAssets.Ensure();profile=Path.Combine(App.OwnedDirectory("Cache"),"UI");
-            view=new WebView2{DefaultBackgroundColor=System.Drawing.Color.FromArgb(255,8,8,8),Visibility=Visibility.Hidden,Margin=new Thickness(6)};root.Children.Add(view);
+            view=new WebView2{DefaultBackgroundColor=System.Drawing.Color.Transparent,Visibility=Visibility.Hidden,Margin=new Thickness(6)};root.Children.Add(view);
             var environment=await CoreWebView2Environment.CreateAsync(null,profile);await view.EnsureCoreWebView2Async(environment);
             var core=view.CoreWebView2;core.SetVirtualHostNameToFolderMapping("yowidgets-ui.invalid",assets,CoreWebView2HostResourceAccessKind.DenyCors);
             core.Settings.AreDevToolsEnabled=false;core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDefaultScriptDialogsEnabled=false;core.Settings.IsStatusBarEnabled=false;core.Settings.IsZoomControlEnabled=false;
@@ -56,7 +57,7 @@ internal sealed class ShellWindow:Window
             id=PlatformSettings.Text(value,"id");var method=PlatformSettings.Text(value,"method");var args=value.TryGetProperty("args",out var a)?a.Clone():JsonSerializer.SerializeToElement(new{});
             if(method=="ui.ready")
             {
-                ready=true;lifetime.Show();foreach(var child in root.Children.Cast<UIElement>().Where(c=>!ReferenceEquals(c,view)).ToArray())root.Children.Remove(child);view!.Visibility=Visibility.Visible;
+                ready=true;lifetime.Show();foreach(var child in root.Children.Cast<UIElement>().Where(c=>!ReferenceEquals(c,view)).ToArray())root.Children.Remove(child);root.Background=new SolidColorBrush(Color.FromArgb(1,8,8,8));view!.Visibility=Visibility.Visible;
                 Reply(id,new{ready=true,viewState=ReadViewState()});Subscribe();App.Trace("shell-ready",$"firstReadyMs={startup.Elapsed.TotalMilliseconds:F1}; pid={Environment.ProcessId}");return;
             }
             if(method=="window.close"){if(args.TryGetProperty("discard",out var discard)&&discard.GetBoolean())draftDirty=false;if(draftDirty){Post(new{type="closeRequested"});Reply(id,new{accepted=true});return;}Reply(id,new{accepted=true});await Sleep(true);return;}
@@ -158,6 +159,7 @@ internal sealed class ShellWindow:Window
     }
     void ShowRecovery(string message)
     {
+        root.Background=new SolidColorBrush(Color.FromRgb(8,8,8));
         view?.Dispose();view=null;root.Children.Clear();var body=Ui.Stack(Ui.Text("Yo",32,weight:FontWeights.SemiBold),Ui.Gap(20),Ui.Text(message,14,"Muted"),Ui.Gap(22));body.MaxWidth=430;body.HorizontalAlignment=HorizontalAlignment.Center;body.VerticalAlignment=VerticalAlignment.Center;
         var retry=Ui.Button("Try again",async()=>{ShowBootstrap();await Initialize();},true);body.Children.Add(retry);body.Children.Add(Ui.Gap(10));
         body.Children.Add(Ui.Button("Install Microsoft WebView2",async()=>{try{retry.IsEnabled=false;await RuntimeRecovery.Install();ShowBootstrap();await Initialize();}catch(Exception e){App.Log("runtime-install",e);ShowRecovery("WebView2 could not be installed. Check your connection or your administrator's policy, then retry.");}finally{retry.IsEnabled=true;}}));

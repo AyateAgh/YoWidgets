@@ -25,6 +25,7 @@ public sealed class AppSettings
     public bool InterfaceSounds { get; set; }
     public double InterfaceVolume { get; set; } = .12;
     public string InterfaceTheme { get; set; } = "dark";
+    public AppearancePreferences InterfaceAppearance {get;set;}=new();
     public List<WidgetState> Widgets { get; set; } = []; public string City { get; set; } = "Kyiv";
     public List<CalendarTask> CalendarTasks {get;set;}=[];
     public bool Seconds
@@ -78,7 +79,7 @@ public sealed class AppSettings
     public void Normalize()
     {
         InterfaceVolume = double.IsFinite(InterfaceVolume) ? Math.Clamp(InterfaceVolume, 0, 1) : .12;
-        InterfaceTheme = "dark";
+        InterfaceAppearance=InterfaceAppearance?.Valid==true?InterfaceAppearance.Normalized():new();InterfaceTheme=InterfaceAppearance.Mode;
         if(InterfaceAccent is not("auto" or "neutral" or "cyan" or "emerald" or "violet" or "amber" or "rose" or "blue" or "coral"))InterfaceAccent="neutral";
         // Disable the old experimental Explorer parent even for existing settings.
         DesktopMode = false;

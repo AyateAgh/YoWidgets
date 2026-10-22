@@ -77,7 +77,13 @@ export interface Voice {
   language: string;
   allowActions: boolean;
 }
+export interface Appearance {
+  mode: "dark" | "light" | "custom";
+  colors: string[];
+  transparent: boolean;
+}
 export interface Settings {
+  appearance?: Appearance;
   city: string;
   analog: boolean;
   fahrenheit: boolean;

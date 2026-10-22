@@ -1,6 +1,13 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { native, rpc } from "./bridge";
 import type { Run, Settings } from "./types";
+const samePreference = (a: unknown, b: unknown) =>
+  a === b ||
+  (typeof a === "object" &&
+    a !== null &&
+    typeof b === "object" &&
+    b !== null &&
+    JSON.stringify(a) === JSON.stringify(b));
 
 // The application owns pending writes, so leaving Settings cannot fork a queue.
 class Preferences {
@@ -38,7 +45,10 @@ class Preferences {
     for (const key of Object.keys(this.snapshot.drafts))
       if (
         !this.running.has(key) &&
-        this.snapshot.drafts[key] === settings[key as keyof Settings]
+        samePreference(
+          this.snapshot.drafts[key],
+          settings[key as keyof Settings],
+        )
       ) {
         delete this.snapshot.drafts[key];
         changed = true;
@@ -70,7 +80,12 @@ class Preferences {
     } finally {
       this.running.delete(key);
       delete this.snapshot.pending[key];
-      if (this.snapshot.drafts[key] === this.server[key as keyof Settings])
+      if (
+        samePreference(
+          this.snapshot.drafts[key],
+          this.server[key as keyof Settings],
+        )
+      )
         delete this.snapshot.drafts[key];
       this.emit();
       if (!this.running.size && native)

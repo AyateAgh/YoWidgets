@@ -29,6 +29,7 @@ internal static class Program
                     var rejected=false;try{await platform.Execute("settings.chat.save",Args(new{provider="Gemini",model="gemini-test",key=""}),CancellationToken.None);}catch(InvalidOperationException){rejected=true;}
                     Check(rejected,"An unrelated provider key was silently reused");Check(manager.Settings.AiProvider=="OpenAI","Rejected change was not rolled back");
                 });
+                await Test("saving preferences in a new profile cannot trigger legacy pack installation on restart",()=>{var legacyCandidate=File.Exists(Path.Combine(root,"settings.json"))&&!File.Exists(Path.Combine(root,"Content","installed.json"));Check(!legacyCandidate&&platform.Content.Installed.Count==0,"An empty modern profile would be migrated as legacy after saving settings");return Task.CompletedTask;});
                 await Test("native pipe responds while a UI event subscription is connected",async()=>{
                     using var stop=new CancellationTokenSource();var count=0;var subscription=ManagementClient.Subscribe(root,_=>Interlocked.Increment(ref count),stop.Token);
                     var result=await ManagementClient.Request(root,"settings.general",new{city="Lviv",hour24=false},CancellationToken.None);
@@ -70,6 +71,12 @@ internal static class Program
 
                 await Test("accent preferences persist and reject unsupported color modes",async()=>{
                     await platform.Execute("settings.general",Args(new{interfaceAccent="violet"}),CancellationToken.None);Check(manager.Settings.InterfaceAccent=="violet","Accent was not saved");var rejected=false;try{await platform.Execute("settings.general",Args(new{interfaceAccent="injected-color"}),CancellationToken.None);}catch(InvalidOperationException){rejected=true;}Check(rejected&&manager.Settings.InterfaceAccent=="violet","Invalid accent replaced the saved choice");
+                });
+                await Test("management appearance persists light, custom gradient and transparency atomically",async()=>{
+                    await platform.Execute("settings.general",Args(new{appearance=new{mode="custom",colors=new[]{"#ffffff","#000000"},transparent=true}}),CancellationToken.None);
+                    var saved=Args(platform.Snapshot()).GetProperty("settings").GetProperty("appearance");Check(saved.GetProperty("mode").GetString()=="custom"&&saved.GetProperty("transparent").GetBoolean(),"Appearance was not saved");Check(saved.GetProperty("colors").GetArrayLength()==2,"Gradient was lost");
+                    var original=JsonSerializer.Serialize(manager.Settings);foreach(var bad in new[]{new{mode="custom",colors=new[]{"url(https://invalid)"},transparent=false},new{mode="unknown",colors=new[]{"#FFFFFF"},transparent=false},new{mode="light",colors=Array.Empty<string>(),transparent=false}}){var rejected=false;try{await platform.Execute("settings.general",Args(new{appearance=bad}),CancellationToken.None);}catch(InvalidOperationException){rejected=true;}Check(rejected&&JsonSerializer.Serialize(manager.Settings)==original,"Invalid appearance changed preferences");}
+                    manager.Settings.Normalize();Check(Args(platform.Snapshot()).GetProperty("settings").GetProperty("appearance").GetProperty("mode").GetString()=="custom","Normalization reset the saved theme");
                 });
                 await Test("approximate city parsing never exposes IP or coordinates",()=>{Check(ApproximateCity.Parse(Args(new{city="Lviv",ip="private-fixture",latitude=50}))=="Lviv","City response was not minimized");var rejected=false;try{ApproximateCity.Parse(Args(new{error=true,city=""}));}catch(InvalidOperationException){rejected=true;}Check(rejected,"An error response was accepted as a city");return Task.CompletedTask;});
                 await Test("local retries retain native source and history clearing preserves installed content",async()=>{
