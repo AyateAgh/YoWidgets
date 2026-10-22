@@ -46,7 +46,7 @@ if (-not $TestDestination) {
  if (Test-Path -LiteralPath $key) { throw 'Uninstall registry key already exists.' }
  New-Item -Path $key -Force | Out-Null
  New-ItemProperty -LiteralPath $key -Name DisplayName -Value YoWidgets -PropertyType String | Out-Null
- New-ItemProperty -LiteralPath $key -Name DisplayVersion -Value '0.6.0' -PropertyType String | Out-Null
+ New-ItemProperty -LiteralPath $key -Name DisplayVersion -Value '0.6.1' -PropertyType String | Out-Null
  New-ItemProperty -LiteralPath $key -Name InstallLocation -Value $installRoot -PropertyType String | Out-Null
  New-ItemProperty -LiteralPath $key -Name UninstallString -Value ('powershell.exe -WindowStyle Hidden -NoProfile -File "'+(Join-Path $installRoot 'uninstall.ps1')+'" -ShowResult') -PropertyType String | Out-Null
 }

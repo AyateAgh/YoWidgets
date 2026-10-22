@@ -61,6 +61,23 @@ internal static class Program
                     File.WriteAllText(Path.Combine(root,"catalog-cache.json"),"null");using var recovered=new DesktopPlatform(manager,root,false);var snapshot=JsonSerializer.SerializeToElement(recovered.Snapshot(),CatalogJson.Options);Check(snapshot.GetProperty("catalog").GetProperty("items").GetArrayLength()>0,"No catalog seed recovered");return Task.CompletedTask;
                 });
 
+                await Test("Library visibility restores exactly the saved instance group",async()=>{
+                    var existing=manager.Settings.Widgets.Single();var x=existing.X;var y=existing.Y;
+                    await platform.Execute("widget.add",Args(new{id="glass-clock"}),CancellationToken.None);var hidden=manager.Settings.Widgets.Last();manager.Disable(hidden);
+                    await platform.Execute("content.visibility",Args(new{id="glass-clock",enabled=false}),CancellationToken.None);Check(!existing.Enabled&&!hidden.Enabled,"Hidden group remained active");
+                    await platform.Execute("content.visibility",Args(new{id="glass-clock",enabled=true}),CancellationToken.None);Check(existing.Enabled&&!hidden.Enabled,"Visibility enabled an unrelated hidden instance");Check(existing.X==x&&existing.Y==y,"Restored instance moved");
+                });
+
+                await Test("accent preferences persist and reject unsupported color modes",async()=>{
+                    await platform.Execute("settings.general",Args(new{interfaceAccent="violet"}),CancellationToken.None);Check(manager.Settings.InterfaceAccent=="violet","Accent was not saved");var rejected=false;try{await platform.Execute("settings.general",Args(new{interfaceAccent="injected-color"}),CancellationToken.None);}catch(InvalidOperationException){rejected=true;}Check(rejected&&manager.Settings.InterfaceAccent=="violet","Invalid accent replaced the saved choice");
+                });
+                await Test("approximate city parsing never exposes IP or coordinates",()=>{Check(ApproximateCity.Parse(Args(new{city="Lviv",ip="private-fixture",latitude=50}))=="Lviv","City response was not minimized");var rejected=false;try{ApproximateCity.Parse(Args(new{error=true,city=""}));}catch(InvalidOperationException){rejected=true;}Check(rejected,"An error response was accepted as a city");return Task.CompletedTask;});
+                await Test("local retries retain native source and history clearing preserves installed content",async()=>{
+                    var privatePath=Path.Combine(root,"private-source-not-present.zip");var response=Args(await platform.Execute("content.import",Args(new{path=privatePath,hash=new string('a',64)}),CancellationToken.None));var first=response.GetProperty("jobId").GetString()!;
+                    async Task Wait(string id){for(var i=0;i<100;i++){var state=Args(platform.Snapshot());if(state.GetProperty("jobs").EnumerateArray().Any(j=>j.GetProperty("id").GetString()==id&&j.GetProperty("stage").GetString()=="failed"))return;await Task.Delay(10);}throw new Exception("Import did not finish");}
+                    await Wait(first);var retry=Args(await platform.Execute("content.retry",Args(new{id=first}),CancellationToken.None)).GetProperty("jobId").GetString()!;Check(retry!=first,"Retry reused the failed job");await Wait(retry);Check(!JsonSerializer.Serialize(platform.Snapshot(),CatalogJson.Options).Contains("private-source-not-present"),"A local path entered the UI snapshot");await platform.Execute("content.clearFinished",Args(new{}),CancellationToken.None);Check(Args(platform.Snapshot()).GetProperty("jobs").GetArrayLength()==0,"Finished history was not cleared");Check(platform.Content.IsReady("glass-clock")&&manager.Settings.Widgets.Any(w=>w.Enabled),"Clearing history removed desktop content");
+                });
+
             }
             catch(Exception e){failed++;Console.WriteLine("FAIL native setup: "+e.Message);}
             finally{Console.WriteLine($"RESULT: {total-failed}/{total} passed");app.Shutdown();}

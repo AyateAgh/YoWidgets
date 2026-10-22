@@ -151,3 +151,31 @@ export function collections(items: CatalogItem[]) {
     ).values(),
   ].sort((a, b) => a.label.localeCompare(b.label));
 }
+
+export function newerVersion(remote: string, local: string) {
+  const parse = (v: string) =>
+    /^\d+(\.\d+){1,3}$/.test(v) ? v.split(".").map(Number) : null;
+  const a = parse(remote),
+    b = parse(local);
+  if (!a || !b) return false;
+  for (let n = 0; n < 4; n++) {
+    if ((a[n] ?? 0) !== (b[n] ?? 0)) return (a[n] ?? 0) > (b[n] ?? 0);
+  }
+  return false;
+}
+export function needsUpdate(
+  item: CatalogItem,
+  installed: Installed[],
+  catalog: Catalog,
+) {
+  const items =
+    item.type === "pack"
+      ? catalog.items.filter((i) => item.includes.includes(i.id))
+      : [item];
+  return items.some((i) => {
+    const local = installed.find((x) => x.item.id === i.id);
+    return (
+      local && !local.needsRepair && newerVersion(i.version, local.item.version)
+    );
+  });
+}

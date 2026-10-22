@@ -69,9 +69,19 @@ public sealed class ContentStore
                 File.WriteAllText(Path.Combine(directory, ".sha256"), "migrated-from-0.5.2");
                 references.Add(new(package.Id, "0.5.2", ""));
             }
-            next.Add(new(item with { Version = "0.5.2" }, references, DateTimeOffset.UtcNow));
+            next.Add(new(item with { Version = "1.0.0" }, references, DateTimeOffset.UtcNow));
         }
         Save(next);
+    }
+    public void UpgradeLegacyMetadata()
+    {
+        bool Legacy(ContentReference p){try{var marker=PackageFile(p.Id,p.Version,".sha256");return p.Version=="0.5.2"&&p.Sha256==""&&File.Exists(marker)&&new FileInfo(marker).Length<128&&File.ReadAllText(marker).Trim()=="migrated-from-0.5.2";}catch(Exception e)when(e is IOException or UnauthorizedAccessException){return false;}}
+        var next=Installed.ToList();var changed=false;
+        for(var i=0;i<next.Count;i++){
+            var record=next[i];if(record.Item.Version!="0.5.2"||record.Item.Pack is not("glass" or "liquid")||record.Packages.Count==0||!IsReady(record.Item.Id))continue;
+            if(record.Packages.All(Legacy)){next[i]=record with{Item=record.Item with{Version="1.0.0"}};changed=true;}
+        }
+        if(changed)Save(next);
     }
     public string PackageFile(string id, string version, string file)
     {

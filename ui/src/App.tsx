@@ -173,6 +173,11 @@ export function App() {
     if (main.current) main.current.scrollTop = positions.current[page] ?? 0;
   }, [page, Boolean(state)]);
   useEffect(() => {
+    const color = state?.settings.accentColor;
+    if (color && /^#[0-9a-f]{6}$/i.test(color))
+      document.documentElement.style.setProperty("--accent", color);
+  }, [state?.settings.accentColor]);
+  useEffect(() => {
     if (native) void rpc("ui.dirty", { dirty }).catch(() => {});
   }, [dirty]);
   useEffect(() => {
@@ -243,7 +248,10 @@ export function App() {
   ];
   return (
     <Tooltip.Provider delayDuration={350}>
-      <div className="application">
+      <div
+        className="application"
+        data-accent={state?.settings.interfaceAccent ?? "neutral"}
+      >
         <header
           className="window-caption"
           onMouseDown={(e) => {
@@ -382,6 +390,7 @@ export function App() {
               />
             ) : page === "library" ? (
               <LibraryView
+                onDownloads={() => navigate("downloads")}
                 preferences={library}
                 setPreferences={setLibrary}
                 state={state}
@@ -391,6 +400,15 @@ export function App() {
               />
             ) : page === "downloads" ? (
               <DownloadsView
+                onLibrary={() => {
+                  setLibrary({
+                    ...library,
+                    query: "",
+                    pack: "all",
+                    tab: "installed",
+                  });
+                  navigate("library");
+                }}
                 state={state}
                 run={run}
                 onBrowse={() => navigate("home")}

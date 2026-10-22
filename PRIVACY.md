@@ -9,3 +9,5 @@ Optional features make requests: weather uses your configured city; lyrics send 
 Interface sounds are generated locally and off by default. Management uses a separate WebView2 profile. Clearing its cache does not erase app credentials. Uninstall removes app-owned settings, keys and content; independently installed browser extensions must be removed in the browser.
 
 Logs and settings may contain private paths or provider errors. Review them before sharing. Never put keys in issues, screenshots or the repository.
+
+Optional Auto accent reads a tiny local wallpaper thumbnail and derives a color. The file path and image never leave native code or get uploaded. The Weather target button makes one IP-city request to ipapi.co only when clicked; the service sees the network IP. Only a city string returns to management, and Save remains explicit. Custom ZIP imports are read locally and do not fetch manifest URLs or install executable modules.

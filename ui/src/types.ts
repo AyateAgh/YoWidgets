@@ -87,6 +87,8 @@ export interface Settings {
   interfaceSounds: boolean;
   interfaceVolume: number;
   interfaceTheme: string;
+  interfaceAccent?: string;
+  accentColor?: string;
   startup: boolean;
   lyricsEnabled: boolean;
   notificationsEnabled: boolean;

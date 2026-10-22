@@ -2283,3 +2283,237 @@ fieldset {
   margin: 0;
   min-width: 0;
 }
+
+/* Settings and card controls preserve focus and box geometry while saving. */
+.switch {
+  flex: 0 0 39px;
+  position: relative;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+  touch-action: manipulation;
+}
+.switch[aria-busy="true"] {
+  box-shadow: 0 0 0 3px #ffffff0b;
+}
+.switch-thumb {
+  flex: none;
+  transition:
+    transform 210ms cubic-bezier(0.2, 0.85, 0.25, 1.1),
+    background-color 160ms ease;
+  will-change: auto;
+}
+.visibility-switch {
+  margin: 2px 0;
+}
+.settings-panel {
+  overflow-anchor: none;
+}
+.main-content {
+  overflow-anchor: none;
+}
+.accent-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  padding: 20px 0 4px;
+}
+.accent-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  background: none;
+  border-radius: 10px;
+  padding: 9px 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.accent-grid button[aria-checked="true"] {
+  background: #ffffff08;
+  color: var(--text);
+}
+.accent-swatch {
+  height: 30px;
+  width: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #101010;
+  border: 1px solid #ffffff20;
+}
+.application:not([data-accent="neutral"]) .liquid-spot {
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--accent) 22%, #1f1f1f),
+    #101010
+  );
+  border-color: color-mix(in srgb, var(--accent) 35%, #ffffff22);
+}
+.application:not([data-accent="neutral"]) .switch[data-state="checked"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.application:not([data-accent="neutral"]) .catalog-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, #333);
+}
+.application:not([data-accent="neutral"]) .status-dot.active:before,
+.application:not([data-accent="neutral"]) .progress-track i {
+  background: var(--accent);
+}
+.application:not([data-accent="neutral"]) .button.primary {
+  background: color-mix(in srgb, var(--accent) 24%, #f5f5f5);
+  color: #101010;
+}
+.city-input-wrap {
+  position: relative;
+  display: block;
+}
+.city-input-wrap input {
+  width: 100%;
+  padding-right: 42px;
+}
+.city-location {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+.location-feedback {
+  min-height: 32px;
+  padding-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.import-summary {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0 18px;
+}
+.import-items {
+  max-height: 240px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+.import-items > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.import-items span {
+  color: var(--muted);
+}
+.preview-seconds {
+  position: absolute;
+  bottom: 13%;
+  right: 12%;
+  opacity: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 160ms;
+}
+.mini-wave {
+  display: flex;
+  gap: 3px;
+  height: 16px;
+  position: absolute;
+  right: 12%;
+  top: 17%;
+  opacity: 0;
+  align-items: center;
+  transition: opacity 160ms;
+}
+.mini-wave i {
+  height: 14px;
+  width: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  transform: scaleY(0.35);
+}
+.sample-weather:after,
+.collection-weather:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    #ffffff30 48%,
+    transparent 72%
+  );
+  opacity: 0;
+  border-radius: inherit;
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .is-live .preview-seconds,
+  .is-live .mini-wave {
+    opacity: 0.9;
+  }
+  .is-live .mini-wave i {
+    animation: mini-wave 750ms ease-in-out infinite alternate;
+  }
+  .is-live .sample-weather:after,
+  .is-live .collection-weather:after {
+    opacity: 0.6;
+    animation: weather-sheen 2600ms ease-in-out infinite alternate;
+  }
+}
+@keyframes mini-wave {
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes weather-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (max-width: 1050px) {
+  .accent-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch-thumb {
+    transition: none;
+  }
+  .preview-seconds,
+  .mini-wave {
+    display: none;
+  }
+}
+@media (forced-colors: active) {
+  .accent-swatch {
+    border: 2px solid ButtonText;
+  }
+  .accent-grid button[aria-checked="true"] {
+    outline: 2px solid Highlight;
+  }
+  .application .switch[data-state="checked"] {
+    background: Highlight;
+    border-color: Highlight;
+  }
+}
+
+.error-banner {
+  position: fixed;
+  top: auto;
+  bottom: 22px;
+  left: calc(var(--rail-width) + 30px);
+  right: 30px;
+  z-index: 80;
+  margin: 0;
+  box-shadow: 0 8px 30px #0008;
+}
+.sample-weather {position:relative;}

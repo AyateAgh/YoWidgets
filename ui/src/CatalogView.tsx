@@ -15,6 +15,7 @@ import type { CatalogItem, Filters, Snapshot, Run } from "./types";
 import { defaults } from "./types";
 import {
   collections,
+  needsUpdate as itemNeedsUpdate,
   activeCount,
   downloadBytes,
   filterCatalog,
@@ -47,16 +48,7 @@ export function InstallButton({
   const installed = isInstalled(item, state.installed);
   const active = activeCount(item, state.widgets);
   const needsUpdate =
-    installed &&
-    (item.type === "pack"
-      ? state.installed.some(
-          (i) =>
-            item.includes.includes(i.item.id) &&
-            i.item.version !==
-              state.catalog.items.find((x) => x.id === i.item.id)?.version,
-        )
-      : state.installed.find((i) => i.item.id === item.id)?.item.version !==
-        item.version);
+    installed && itemNeedsUpdate(item, state.installed, state.catalog);
   const action = async () => {
     setBusy(true);
     try {

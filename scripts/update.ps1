@@ -36,6 +36,6 @@ foreach($relative in $previous) {
 $m.Files=@($newFiles.Name)
 $m | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath ($marker+'.tmp') -Encoding UTF8
 Move-Item -LiteralPath ($marker+'.tmp') -Destination $marker -Force
-Set-ItemProperty -LiteralPath 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/YoWidgets' -Name DisplayVersion -Value '0.6.0'
-Write-Output 'Updated to 0.6.0; user settings and source files preserved.'
+Set-ItemProperty -LiteralPath 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/YoWidgets' -Name DisplayVersion -Value '0.6.1'
+Write-Output 'Updated to 0.6.1; user settings and source files preserved.'
 if(-not $NoLaunch) { Start-Process -FilePath (Join-Path $installRoot 'YoWidgets.exe') -WindowStyle Hidden }

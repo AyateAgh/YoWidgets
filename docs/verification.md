@@ -1,4 +1,14 @@
-# YoWidgets 0.6 verification
+# YoWidgets 0.6.1 verification
+
+## Catalog polish, 2026-10-22
+
+Frontend 16/16, content platform 22/22 and native platform 12/12 passed. Core 87/87 and assistant transport 75/75 remain green. The default Windows build passed all native voice/composer/media/control/document suites, real browser bridges and the compositor probe.
+
+New checks cover numeric update eligibility, existing legacy metadata repair, exact Library instance restoration, optimistic toggle rollback and saving across Settings remounts, city draft versus explicit save, terminal download navigation, local job retry, secret-free import snapshots, valid offline ZIP resources and rejected executable/path/checksum/foreign-style payloads. Reproductions for the foreign dependency override, stale settings queue and modal-picker timeout failed before their fixes. An independent review reported no Critical and three Important issues plus a local-import retry defect; all four are addressed. Writes remain owned by the application while navigating; a hidden host waits for in-flight preferences before suspension.
+
+The actual 0.6.1 host was checked with an isolated profile: a native ZIP picker remained usable beyond the regular RPC deadline, showed metadata, installed an Aurora clock, navigated from Downloads to Library and enabled it with the card switch. General switch screenshots retained identical card geometry. Appearance rendered all eight accents and applied Violet to the active rail. IP lookup parsing and editable-draft behavior use fixtures; no user's current IP was queried during tests. Hardware/performance limitations below still apply.
+
+The normal portable and owned installed copies have matching 0.6.1.0 binaries. Reopening the existing profile preserved encrypted connection fingerprints and widget IDs, positions, sizes and visibility. Home showed current migrated content as Installed/Add instead of Update. Owned install/removal checks passed 15/15.
 
 ## Automated checks
 

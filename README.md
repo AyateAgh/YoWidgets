@@ -1,8 +1,10 @@
-# YoWidgets 0.6.0
+# YoWidgets 0.6.1
 
 ## New catalog and library
 
-**Home → Install** downloads a widget or collection. **Library → Add to desktop** activates an instance. New profiles have no installed packs; existing widgets migrate locally with their settings. Search, type/collection/status filters, details and real download progress are included. Library and Settings work offline.
+**Home → Install** downloads a widget or collection. **Library → desktop switch** hides/restores its saved instances and positions; details offer additional instances and configuration. Update appears only for a newer catalog version. New profiles have no installed packs; existing widgets migrate locally with their settings. Search, type/collection/status filters, details and real download progress are included. Library and Settings work offline.
+
+Library supports [local custom package ZIPs](docs/custom-packages.md), with metadata review before installation. Downloads separate cancellation from navigation to installed content, and Clear finished removes history only. Settings switches update immediately while writes remain serialized across navigation. Appearance offers eight subtle accents and opt-in local wallpaper matching. The weather target button can fill an editable city using ipapi.co; Save & refresh remains explicit. Hover previews animate only while visible and respect reduced motion.
 
 The management interface uses an original empty-ring Yo mark, black 72 DIP rail and liquid selection. It runs separately from the native widget engine, sleeps when hidden and normally exits after 15 minutes. Unsaved settings drafts remain in memory until saved or discarded. Interface sounds are optional and off by default. Pets, taskbars, docks and system effects have reserved categories; their engines are not shipped yet.
 
@@ -31,7 +33,7 @@ The older native widget documentation below describes the widget layer. Its form
 
 Старого переключателя материала в Appearance нет. Стиль хранится в каждом экземпляре виджета. Старые экземпляры автоматически переходят в Liquid Glass с сохранением ID, координат, размеров и включённых интеграций.
 
-Оба пака используют текущий фон Windows Composition. Файл системных обоев не читается; старые обои и кеши фона не подставляются даже при отказе эффекта. Поверх живого фона рисуется только прозрачный оптический край. Размытие выполняет GPU-композиция: Gaussian sigma 2 для Glass, 3 для Liquid Glass и 4.5 во время его движения. Параметры заданы паком, без отдельной настройки. При недоступности композиции остаётся нейтральная прозрачность.
+Оба пака используют текущий фон Windows Composition. Для подложки виджета файл системных обоев не читается; старые обои и кеши фона не подставляются даже при отказе эффекта. Поверх живого фона рисуется только прозрачный оптический край. Размытие выполняет GPU-композиция: Gaussian sigma 2 для Glass, 3 для Liquid Glass и 4.5 во время его движения. Параметры заданы паком, без отдельной настройки. При недоступности композиции остаётся нейтральная прозрачность.
 
 Это Windows-адаптация по [документации Apple](https://developer.apple.com/videos/play/wwdc2025/219/), без официальной связи с Apple. Полное преломление произвольных окон, слияние форм и пиксельное совпадение с iOS 26 не реализованы. Превью в каталоге — небольшие авторские образцы стиля, не снимки рабочего стола.
 
@@ -45,7 +47,7 @@ The older native widget documentation below describes the widget layer. Its form
 
 ## Подключения
 
-- **Погода:** выбранный город передаётся Open-Meteo; ограниченный резерв wttr.in при сетевом сбое. Локальный кеш, без IP-геолокации и вымышленных значений.
+- **Погода:** выбранный город передаётся Open-Meteo; ограниченный резерв wttr.in при сетевом сбое. Локальный кеш без вымышленных значений. Прицел в настройках по отдельному нажатию запрашивает примерный город через ipapi.co; найденный город нужно проверить и сохранить.
 - **Музыка:** системные медиасессии Windows, в том числе от установленных плееров; браузер не требуется. Команды исполняет источник. Shuffle/Repeat появляются только при поддержке музыкой, скрываются для видео/закрытой сессии. Плеер может предоставлять previous/next без shuffle/repeat. Если приложение не публикует медиасессию Windows, для него нужен отдельный адаптер; универсальная поддержка всех версий iTunes и сторонних клиентов не заявляется. Обложка трека → логотип известного сайта/приложения → полностью скрытая область обложки. Логотипы запрашиваются с публичных адресов по метаданным; вкладки/история браузера не читаются.
 - **Lyrics:** включаются в Settings, название и исполнитель передаются LRCLIB. Кнопка появляется только после успешного поиска текста. Точные метаданные дополняются поиском с очисткой веб-заголовков и отделением исполнителя от загрузившего запись пользователя. Синхронизация построчная, от часов активной медиасессии; пауза и перемотка учитываются. Если длительность версии отличается, доступны только обычные строки с пометкой об отсутствии времени. Для неизвестных треков, инструментальной музыки, видео и сетевых ошибок кнопка скрыта. Аудио, содержимое вкладок и субтитры сайтов не записываются и не извлекаются. LRC не превращается в выдуманную синхронизацию каждого слова. Кеш ограничен 12 записями, запросы последовательны, Retry-After соблюдается.
 - **Уведомления:** требуются package identity и согласие Windows. Автоматической регистрации нет; dev-скрипты парного подключения/удаления лежат в scripts. Лента не подавляет и не удаляет оригиналы уведомлений.
@@ -88,7 +90,7 @@ The older native widget documentation below describes the widget layer. Its form
 ./.tools/dotnet/dotnet.exe run --project tests/YoWidgets.Tests -c Release
 ```
 
-`tools/MediaFixture` — явно обозначенный тихий тестовый источник SMTC, без аудио и стороннего аккаунта. `tools/WallpaperProbe` — исторический диагностический инструмент; его чтение обоев не входит в приложение. Магазин, загрузка стороннего кода и публикация мастерской пока не реализованы.
+`tools/MediaFixture` — явно обозначенный тихий тестовый источник SMTC, без аудио и стороннего аккаунта. `tools/WallpaperProbe` — исторический диагностический инструмент; его диагностическое чтение обоев не используется для подложек виджетов. Отдельная настройка Auto accent читает миниатюру обоев только локально. Сторонний исполняемый код и публикация мастерской пока не поддерживаются.
 
 Проверенные сценарии и ограничения: [verification](docs/verification.md). Сторонние компоненты: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 

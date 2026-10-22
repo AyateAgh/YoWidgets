@@ -12,6 +12,8 @@ import {
   Play,
   ShieldCheck,
   Volume2,
+  LocateFixed,
+  LoaderCircle,
 } from "lucide-react";
 import type {
   GenerationConnection,
@@ -22,6 +24,8 @@ import type {
 } from "./types";
 import { Button, Dropdown, Modal, Section, ToggleRow } from "./primitives";
 import { rpc } from "./bridge";
+import { AccentPicker } from "./AccentPicker";
+import { usePreferences } from "./usePreferences";
 
 const settingsTabs = [
   ["general", "General"],
@@ -74,19 +78,9 @@ export function SettingsView({
     },
     [section, onDirty],
   );
-  const s = state.settings;
-  const [pending, setPending] = useState("");
+  const { value: s, save, pending } = usePreferences(state.settings, run);
   const [confirm, setConfirm] = useState("");
   const [restore, setRestore] = useState(false);
-  const save = async (key: string, value: unknown) => {
-    setPending(key);
-    try {
-      await run("settings.general", { [key]: value });
-    } catch {
-    } finally {
-      setPending("");
-    }
-  };
   return (
     <>
       <header className="page-header">
@@ -113,9 +107,9 @@ export function SettingsView({
               <Section title="Your everyday setup">
                 <ToggleRow
                   label="Launch at Windows sign-in"
+                  busy={pending.startup}
                   checked={s.startup}
                   onChange={(v) => void save("startup", v)}
-                  disabled={Boolean(pending)}
                 />
                 <div className="setting-row">
                   <span>
@@ -133,9 +127,9 @@ export function SettingsView({
               >
                 <ToggleRow
                   label="Play interface sounds"
+                  busy={pending.interfaceSounds}
                   checked={s.interfaceSounds}
                   onChange={(v) => void save("interfaceSounds", v)}
-                  disabled={Boolean(pending)}
                 />
                 <label className="setting-row volume-row">
                   <span className="setting-label">Volume</span>
@@ -169,7 +163,6 @@ export function SettingsView({
                           Number(e.currentTarget.value) / 100,
                         );
                     }}
-                    disabled={Boolean(pending)}
                   />
                   <Button
                     onClick={() =>
@@ -204,6 +197,12 @@ export function SettingsView({
                   </div>
                 </div>
               </Section>
+              <Section title="Accent color">
+                <AccentPicker
+                  mode={s.interfaceAccent ?? "neutral"}
+                  onChange={(mode) => void save("interfaceAccent", mode)}
+                />
+              </Section>
               <Section title="Motion">
                 <div className="setting-row">
                   <span>
@@ -224,28 +223,28 @@ export function SettingsView({
               <Section title="Time & placement">
                 <ToggleRow
                   label="Analog clock"
+                  busy={pending.analog}
                   checked={s.analog}
                   onChange={(v) => void save("analog", v)}
-                  disabled={Boolean(pending)}
                 />
                 <ToggleRow
                   label="24-hour time"
+                  busy={pending.hour24}
                   checked={s.hour24}
                   onChange={(v) => void save("hour24", v)}
-                  disabled={Boolean(pending)}
                 />
                 <ToggleRow
                   label="Show seconds"
                   description="Updates the clock every second while it is visible."
+                  busy={pending.seconds}
                   checked={s.seconds}
                   onChange={(v) => void save("seconds", v)}
-                  disabled={Boolean(pending)}
                 />
                 <ToggleRow
                   label="Always on top"
+                  busy={pending.topmost}
                   checked={s.topmost}
                   onChange={(v) => void save("topmost", v)}
-                  disabled={Boolean(pending)}
                 />
                 <div className="setting-row">
                   <span>
@@ -264,7 +263,11 @@ export function SettingsView({
                   </Button>
                 </div>
               </Section>
-              <WeatherSettings s={s} run={run} onDirty={weatherDirty} />
+              <WeatherSettings
+                s={state.settings}
+                run={run}
+                onDirty={weatherDirty}
+              />
               <Section title="Music">
                 <div className="setting-row">
                   <span className="setting-label">Source</span>
@@ -287,9 +290,9 @@ export function SettingsView({
                 <ToggleRow
                   label="Song lyrics"
                   description="Track details are sent to LRCLIB when enabled."
+                  busy={pending.lyricsEnabled}
                   checked={s.lyricsEnabled}
                   onChange={(v) => void save("lyricsEnabled", v)}
-                  disabled={Boolean(pending)}
                 />
                 <div className="setting-row">
                   <span>
@@ -338,9 +341,9 @@ export function SettingsView({
               <Section title="Windows notifications">
                 <ToggleRow
                   label="Enable notification access"
+                  busy={pending.notificationsEnabled}
                   checked={s.notificationsEnabled}
                   onChange={(v) => void save("notificationsEnabled", v)}
-                  disabled={Boolean(pending)}
                 />
                 <div className="setting-row">
                   <span>
@@ -363,9 +366,9 @@ export function SettingsView({
                 <ToggleRow
                   label="Ask before browser and app control"
                   description="Applies to new chat tasks and delegated voice actions."
+                  busy={pending.aiAskBeforeControl}
                   checked={s.aiAskBeforeControl}
                   onChange={(v) => void save("aiAskBeforeControl", v)}
-                  disabled={Boolean(pending)}
                 />
                 <div className="setting-row">
                   <span className="setting-description">
@@ -576,7 +579,35 @@ function WeatherSettings({
   run: Run;
   onDirty: (value: boolean) => void;
 }) {
+  const preferences = usePreferences(s, run);
   const [city, setCity] = useState(s.city);
+  const [locating, setLocating] = useState(false);
+  const [locationFeedback, setLocationFeedback] = useState("");
+  const locationEpoch = useRef(0);
+  useEffect(
+    () => () => {
+      locationEpoch.current++;
+    },
+    [],
+  );
+  const locate = async () => {
+    const stamp = ++locationEpoch.current;
+    setLocating(true);
+    setLocationFeedback("");
+    try {
+      const result = await run<{ city: string }>("settings.weather.locate");
+      if (stamp === locationEpoch.current) {
+        setCity(result.city);
+        onDirty(true);
+        setLocationFeedback("City found. Review it, then save.");
+      }
+    } catch (e) {
+      if (stamp === locationEpoch.current)
+        setLocationFeedback((e as Error).message);
+    } finally {
+      setLocating(false);
+    }
+  };
   const [busy, setBusy] = useState(false);
   useEffect(() => () => onDirty(false), [onDirty]);
   return (
@@ -601,16 +632,34 @@ function WeatherSettings({
           <div className="form-inline">
             <label className="form-field">
               <span>City</span>
-              <input
-                disabled={busy}
-                value={city}
-                onChange={(e) => {
-                  setCity(e.target.value);
-                  onDirty(true);
-                }}
-                maxLength={120}
-                required
-              />
+              <span className="city-input-wrap">
+                {" "}
+                <input
+                  disabled={busy}
+                  value={city}
+                  onChange={(e) => {
+                    locationEpoch.current++;
+                    setCity(e.target.value);
+                    onDirty(true);
+                  }}
+                  maxLength={120}
+                  required
+                />
+                <button
+                  type="button"
+                  className="icon-button city-location"
+                  aria-label="Find my city using approximate IP location"
+                  title="Uses ipapi.co only when clicked. Review your city before saving."
+                  disabled={locating}
+                  onClick={() => void locate()}
+                >
+                  {locating ? (
+                    <LoaderCircle size={16} className="spin" />
+                  ) : (
+                    <LocateFixed size={16} />
+                  )}
+                </button>
+              </span>
             </label>
             <Button type="submit" variant="primary" busy={busy}>
               Save & refresh
@@ -618,12 +667,14 @@ function WeatherSettings({
           </div>
         </fieldset>
       </form>
+      <p className="location-feedback" role="status">
+        {locationFeedback}
+      </p>
       <ToggleRow
         label="Temperature in Fahrenheit"
-        checked={s.fahrenheit}
-        onChange={(v) =>
-          void run("settings.general", { fahrenheit: v }).catch(() => {})
-        }
+        busy={preferences.pending.fahrenheit}
+        checked={preferences.value.fahrenheit}
+        onChange={(v) => void preferences.save("fahrenheit", v)}
       />
     </Section>
   );

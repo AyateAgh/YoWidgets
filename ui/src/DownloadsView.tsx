@@ -1,5 +1,6 @@
 import {
   ArrowDownToLine,
+  ArrowRight,
   Check,
   Clock3,
   Download,
@@ -14,10 +15,12 @@ export function DownloadsView({
   state,
   run,
   onBrowse,
+  onLibrary,
 }: {
   state: Snapshot;
   run: Run;
   onBrowse: () => void;
+  onLibrary: () => void;
 }) {
   const active = state.jobs.filter(
     (j) => !["completed", "failed", "cancelled"].includes(j.stage),
@@ -31,7 +34,18 @@ export function DownloadsView({
             <span className="item-count">{active.length} in progress</span>
           )}
         </div>
-        <Button onClick={onBrowse}>Browse catalog</Button>
+        <div className="header-tools">
+          {state.jobs.some((j) =>
+            ["completed", "failed", "cancelled"].includes(j.stage),
+          ) && (
+            <Button
+              onClick={() => void run("content.clearFinished").catch(() => {})}
+            >
+              Clear finished
+            </Button>
+          )}
+          <Button onClick={onBrowse}>Browse catalog</Button>
+        </div>
       </header>
       {!state.jobs.length ? (
         <Empty
@@ -117,25 +131,23 @@ export function DownloadsView({
                       {job.stage !== "completed" && (
                         <Button
                           onClick={() =>
-                            void run("content.install", {
-                              id: job.itemId,
+                            void run("content.retry", {
+                              id: job.id,
                             }).catch(() => {})
                           }
                         >
                           <RotateCcw size={14} /> Retry
                         </Button>
                       )}
-                      <button
-                        className="icon-button"
-                        aria-label={`Dismiss ${job.title} download`}
-                        onClick={() =>
-                          void run("content.dismiss", { id: job.id }).catch(
-                            () => {},
-                          )
-                        }
-                      >
-                        <X size={16} />
-                      </button>
+                      {job.stage === "completed" && (
+                        <button
+                          className="icon-button"
+                          aria-label={`Show ${job.title} in Library`}
+                          onClick={onLibrary}
+                        >
+                          <ArrowRight size={18} />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

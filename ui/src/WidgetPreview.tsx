@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Bell,
@@ -22,10 +23,64 @@ export function WidgetPreview({
   large?: boolean;
 }) {
   const kind = item.kind;
+  const root = useRef<HTMLDivElement>(null);
+  const [wanted, setWanted] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [reduced, setReduced] = useState(false);
+  const [second, setSecond] = useState(0);
+  useEffect(() => {
+    const element = root.current;
+    if (!element) return;
+    const host = element.closest(".catalog-card") ?? element;
+    const enter = () => setWanted(true);
+    const leave = () => setWanted(false);
+    host.addEventListener("pointerenter", enter);
+    host.addEventListener("pointerleave", leave);
+    host.addEventListener("focusin", enter);
+    host.addEventListener("focusout", leave);
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    setReduced(media?.matches ?? false);
+    const motion = () => setReduced(media?.matches ?? false);
+    media?.addEventListener("change", motion);
+    return () => {
+      host.removeEventListener("pointerenter", enter);
+      host.removeEventListener("pointerleave", leave);
+      host.removeEventListener("focusin", enter);
+      host.removeEventListener("focusout", leave);
+      media?.removeEventListener("change", motion);
+    };
+  }, []);
+  const live = wanted && visible && !reduced;
+  useEffect(() => {
+    if (!wanted) return;
+    const pause = () => setWanted(false);
+    document.addEventListener("visibilitychange", pause);
+    window.addEventListener("yo:suspend", pause);
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver((entries) =>
+            setVisible(entries[0]?.isIntersecting ?? false),
+          );
+    if (root.current) observer?.observe(root.current);
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", pause);
+      window.removeEventListener("yo:suspend", pause);
+    };
+  }, [wanted]);
+  useEffect(() => {
+    if (!live || kind !== "clock") return;
+    const tick = () => setSecond(new Date().getSeconds());
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [live, kind]);
   return (
     <div
+      ref={root}
       aria-label={`${item.title} preview`}
-      className={`widget-preview ${item.pack} ${large ? "large" : ""} kind-${kind} ${item.type === "pack" ? "collection-preview" : ""}`}
+      className={`widget-preview ${item.pack} ${live ? "is-live" : ""} ${large ? "large" : ""} kind-${kind} ${item.type === "pack" ? "collection-preview" : ""}`}
     >
       <div className="preview-grain" />
       <div className="landscape">
@@ -56,6 +111,9 @@ export function WidgetPreview({
             <>
               <small>Wednesday, 21 October</small>
               <b className="clock-time">09:41</b>
+              <span className="preview-seconds" aria-hidden="true">
+                :{String(second).padStart(2, "0")}
+              </span>
             </>
           )}
           {kind === "weather" && (
@@ -99,6 +157,11 @@ export function WidgetPreview({
                   <b>In the moment</b>
                   <small>Your music, in view</small>
                 </div>
+              </div>
+              <div className="mini-wave" aria-hidden="true">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <i key={i} style={{ animationDelay: `${i * -130}ms` }} />
+                ))}
               </div>
               <div className="music-progress">
                 <i />

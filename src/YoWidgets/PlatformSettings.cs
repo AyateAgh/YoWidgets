@@ -1,14 +1,14 @@
 using System.Text.Json;
 namespace YoWidgets;
 
-internal sealed class PlatformSettings(WidgetManager manager)
+internal sealed class PlatformSettings(WidgetManager manager,InterfaceAccent? accent=null)
 {
     AppSettings Settings => manager.Settings;
     internal object Snapshot()
     {
         var s=Settings;
         return new {
-            s.City,s.Analog,s.Fahrenheit,s.Seconds,s.Hour24,s.Topmost,s.InterfaceSounds,s.InterfaceVolume,s.InterfaceTheme,
+            s.City,s.Analog,s.Fahrenheit,s.Seconds,s.Hour24,s.Topmost,s.InterfaceSounds,s.InterfaceVolume,s.InterfaceTheme,s.InterfaceAccent,accentColor=accent?.Resolve(s.InterfaceAccent)??"#F5F5F5",
             startup=StartupRegistration.Enabled,s.LyricsEnabled,s.NotificationsEnabled,notificationStatus=manager.Data.Notifications.Status,
             s.AiAskBeforeControl,s.AiProcessText,voice=s.VoiceCall,
             voiceChoices=new {gemini=VoiceCallOptions.Voices("Gemini"),openai=VoiceCallOptions.Voices("OpenAI")},
@@ -16,7 +16,7 @@ internal sealed class PlatformSettings(WidgetManager manager)
             chat=AssistantProtocol.Providers.Select(p=>new {provider=p,model=ChatConnections.Find(s,p)?.Model??(s.AiProvider==p?s.AiModel:AssistantProtocol.DefaultModel(p)),connected=ChatConnections.Find(s,p)!=null||s.AiProvider==p&&!string.IsNullOrWhiteSpace(s.AiKeyProtected)}).ToArray(),
             generation=GenerationConnections.Categories.Select(c=>{var g=GenerationConnections.Get(s,c.Id);return new {id=c.Id,title=c.Title,g.Mode,g.Provider,g.Model,g.Voice,keySaved=!string.IsNullOrEmpty(g.KeyProtected),providers=GenerationConnections.Providers(c.Id)};}).ToArray(),
             mediaSource=manager.Data.Media.SelectedSource,mediaSources=manager.Data.Media.Sources,bridgeStatus=manager.Data.Media.BrowserBridgeStatus,
-            canUninstall=Cleanup.IsInstalled,version="0.6.0",platform=Environment.OSVersion.VersionString
+            canUninstall=Cleanup.IsInstalled,version="0.6.1",platform=Environment.OSVersion.VersionString
         };
     }
     internal async Task<object> Execute(string method,JsonElement args,CancellationToken token)
@@ -27,12 +27,13 @@ internal sealed class PlatformSettings(WidgetManager manager)
             case "settings.general":
                 Mutate(()=> {
                     if(args.TryGetProperty("city",out var city)){var text=city.GetString()?.Trim()??"";if(text.Length is <1 or >120)throw new InvalidOperationException("Enter a city name of 1–120 characters.");s.City=text;}
+                    if(args.TryGetProperty("interfaceAccent",out var requestedAccent)){var mode=requestedAccent.GetString()??"";if(mode!="auto"&&!InterfaceAccent.Presets.ContainsKey(mode))throw new InvalidOperationException("Choose an available accent color.");s.InterfaceAccent=mode;}
                     SetBool(args,"analog",v=>s.Analog=v);SetBool(args,"fahrenheit",v=>s.Fahrenheit=v);SetBool(args,"seconds",v=>s.Seconds=v);SetBool(args,"hour24",v=>s.Hour24=v);SetBool(args,"topmost",v=>s.Topmost=v);
                     SetBool(args,"interfaceSounds",v=>s.InterfaceSounds=v);SetBool(args,"lyricsEnabled",v=>s.LyricsEnabled=v);SetBool(args,"notificationsEnabled",v=>s.NotificationsEnabled=v);SetBool(args,"aiAskBeforeControl",v=>s.AiAskBeforeControl=v);
                     if(args.TryGetProperty("interfaceVolume",out var volume)){var value=volume.GetDouble();if(!double.IsFinite(value)||value is <0 or >1)throw new InvalidOperationException("Choose a volume between 0 and 100%.");s.InterfaceVolume=value;}
                     if(args.TryGetProperty("startup",out var startup))StartupRegistration.Set(startup.GetBoolean());
                 });
-                if(!s.NotificationsEnabled)manager.Data.Notifications.Suspend();manager.ApplyAppearance();manager.Data.UpdateActivity();return new {message="Preferences saved"};
+                if(args.TryGetProperty("interfaceAccent",out _)&&s.InterfaceAccent=="auto")accent?.Refresh();if(args.TryGetProperty("notificationsEnabled",out _)&&!s.NotificationsEnabled)manager.Data.Notifications.Suspend();if(args.EnumerateObject().Any(p=>p.Name is "analog" or "hour24" or "seconds" or "topmost" or "fahrenheit"))manager.ApplyAppearance();manager.Data.UpdateActivity();return new {message="Preferences saved"};
             case "settings.chat.save":
             {
                 var provider=Text(args,"provider");var model=Text(args,"model");ValidateChat(provider,model,Text(args,"key"));
@@ -67,6 +68,7 @@ internal sealed class PlatformSettings(WidgetManager manager)
                 if(gemini!=value.GeminiModel||openai!=value.OpenAIModel)throw new InvalidOperationException("Enter valid voice model IDs.");
                 Mutate(()=>{s.VoiceCall=value;SetBool(args,"aiAskBeforeControl",v=>s.AiAskBeforeControl=v);});return new {message="Voice preferences saved"};
             }
+            case "settings.weather.locate":return new{city=await ApproximateCity.Locate(token)};
             case "settings.weather.refresh":
                 if(manager.Snoozed)throw new InvalidOperationException("Resume widgets before refreshing weather.");
                 await manager.Data.RefreshWeatherAsync();return new {message=manager.Data.Weather.Error.Length==0?"Weather updated":manager.Data.Weather.Error};

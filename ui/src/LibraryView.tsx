@@ -19,13 +19,15 @@ import {
   kindNames,
   packName,
 } from "./catalog";
-import { Button, Dropdown, Empty, Modal } from "./primitives";
+import { Button, Dropdown, Empty, Modal, VisibilitySwitch } from "./primitives";
 import { WidgetPreview } from "./WidgetPreview";
+import { ImportPackage } from "./ImportPackage";
 import { InstallButton } from "./CatalogView";
 export function LibraryView({
   state,
   run,
   onBrowse,
+  onDownloads,
   onOpen,
   preferences,
   setPreferences,
@@ -33,6 +35,7 @@ export function LibraryView({
   state: Snapshot;
   run: Run;
   onBrowse: () => void;
+  onDownloads: () => void;
   onOpen: (item: CatalogItem) => void;
   preferences: LibraryPreferences;
   setPreferences: (value: LibraryPreferences) => void;
@@ -71,9 +74,12 @@ export function LibraryView({
           <h1>Library</h1>
           <span className="item-count">{state.installed.length} installed</span>
         </div>
-        <Button onClick={onBrowse}>
-          <Plus size={15} /> Find something new
-        </Button>
+        <div className="header-tools">
+          <ImportPackage run={run} onStarted={onDownloads} />
+          <Button onClick={onBrowse}>
+            <Plus size={15} /> Find something new
+          </Button>
+        </div>
       </header>
       <div className="library-toolbar">
         <div className="segmented" aria-label="Library view">
@@ -229,7 +235,12 @@ export function LibraryView({
                   <h3>{item.title}</h3>
                   <span>{packName(item.pack)}</span>
                 </div>
-                <InstallButton item={item} state={state} run={run} small />
+                {state.installed.find((i) => i.item.id === item.id)
+                  ?.needsRepair ? (
+                  <InstallButton item={item} state={state} run={run} />
+                ) : (
+                  <VisibilitySwitch item={item} state={state} run={run} />
+                )}
               </div>
               <button
                 className="preview-button"
@@ -248,7 +259,7 @@ export function LibraryView({
                 >
                   {activeCount(item, state.widgets)
                     ? `${activeCount(item, state.widgets)} active`
-                    : "Installed"}
+                    : "Inactive"}
                 </span>
                 <button
                   className="icon-button subtle"

@@ -11,7 +11,8 @@ internal sealed class ShellWindow:Window
 {
     readonly Grid root=new(){Background=new SolidColorBrush(Color.FromRgb(8,8,8))};
     readonly ShellLifetime lifetime=new();readonly CancellationTokenSource stop=new();readonly DispatcherTimer expiry=new();
-    readonly Stopwatch startup=Stopwatch.StartNew();WebView2? view;CancellationTokenSource? subscription;bool ready,exit,draftDirty;string profile="";DateTimeOffset maintained=DateTimeOffset.MinValue;
+    readonly Dictionary<string,(string Path,string Hash)> imports=[];
+    readonly Stopwatch startup=Stopwatch.StartNew();WebView2? view;CancellationTokenSource? subscription;bool ready,exit,draftDirty,pendingWrites;string profile="";DateTimeOffset maintained=DateTimeOffset.MinValue;
     internal ShellWindow()
     {
         Title="YoWidgets";Width=1180;Height=800;MinWidth=860;MinHeight=600;WindowStartupLocation=WindowStartupLocation.CenterScreen;WindowStyle=WindowStyle.None;Background=root.Background;
@@ -64,6 +65,14 @@ internal sealed class ShellWindow:Window
             if(method=="window.drag"){if(GetAsyncKeyState(1)<0){try{DragMove();}catch(InvalidOperationException){}}Reply(id,new{accepted=true});return;}
             if(method=="ui.persist"){SaveViewState(args);Reply(id,new{accepted=true});return;}
             if(method=="ui.dirty"){draftDirty=args.TryGetProperty("dirty",out var dirty)&&dirty.GetBoolean();Reply(id,new{accepted=true});return;}
+            if(method=="ui.saving"){pendingWrites=args.TryGetProperty("saving",out var saving)&&saving.GetBoolean();Reply(id,new{accepted=true});if(!pendingWrites&&(!IsVisible||WindowState==WindowState.Minimized))_=Sleep(false);return;}
+            if(method=="ui.import.pick"){
+                var picker=new Microsoft.Win32.OpenFileDialog{Title="Import widget package",Filter="YoWidgets package (*.zip)|*.zip",CheckFileExists=true,Multiselect=false};if(picker.ShowDialog(this)!=true){Reply(id,new{cancelled=true});return;}
+                var path=picker.FileName;var metadata=await Task.Run(()=>{using var bundle=new LocalContentBundle(path);return new{hash=bundle.Hash,items=bundle.Catalog.Items.Where(i=>i.Type=="widget").Select(i=>new{i.Title,i.Kind,i.Pack,i.Author}).ToArray(),bytes=bundle.Bytes};});var ticket=Guid.NewGuid().ToString("N");imports.Clear();imports[ticket]=(path,metadata.hash);Reply(id,new{ticket,metadata.items,metadata.bytes});return;
+            }
+            if(method=="ui.import.install"){
+                var ticket=PlatformSettings.Text(args,"ticket");if(!imports.Remove(ticket,out var selection))throw new InvalidOperationException("Choose the package again.");var result=await ManagementClient.Request(App.DataRoot,"content.import",new{path=selection.Path,hash=selection.Hash},stop.Token);if(!result.GetProperty("ok").GetBoolean())throw new InvalidOperationException("The import could not start.");Reply(id,result.GetProperty("result"));return;
+            }
             if(method=="ui.clearCache"){await view!.CoreWebView2.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache|CoreWebView2BrowsingDataKinds.CacheStorage);Reply(id,new{accepted=true});return;}
             if(method=="ui.external")
             {
@@ -71,14 +80,14 @@ internal sealed class ShellWindow:Window
                 Process.Start(new ProcessStartInfo(url){UseShellExecute=true});Reply(id,new{accepted=true});return;
             }
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(stop.Token);timeout.CancelAfter(TimeSpan.FromSeconds(30));
-            if(method=="widget.add")
+            if(method is "widget.add" or "content.visibility")
             {
                 var obj=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(args.GetRawText())??[];obj["window"]=JsonSerializer.SerializeToElement(Native.Handle(this).ToInt64());args=JsonSerializer.SerializeToElement(obj);
             }
             var response=await ManagementClient.Request(App.DataRoot,method,args,timeout.Token);
             if(response.GetProperty("ok").GetBoolean())Reply(id,response.GetProperty("result"));else Error(id,response.GetProperty("error").GetString()??"This action failed.");
         }
-        catch(Exception ex){Error(id,ex is InvalidOperationException?ex.Message:ex is OperationCanceledException?"The action timed out. Your desktop stays unchanged.":"The native connection is unavailable. Reopen YoWidgets.");}
+        catch(Exception ex){Error(id,ex is InvalidOperationException or InvalidDataException?ex.Message:ex is OperationCanceledException?"The action timed out. Your desktop stays unchanged.":"The native connection is unavailable. Reopen YoWidgets.");}
     }
     void Reply(string id,object result)=>Post(new{id,ok=true,result});
     void Error(string id,string message)=>Post(new{id,ok=false,error=message});
@@ -94,6 +103,7 @@ internal sealed class ShellWindow:Window
     }
     async Task Sleep(bool hide)
     {
+        if(pendingWrites){if(hide)Hide();expiry.Stop();return;}
         if(exit)return;var generation=lifetime.Hide(DateTimeOffset.UtcNow);subscription?.Cancel();expiry.Stop();if(!draftDirty)expiry.Start();
         if(hide)Hide();if(view?.CoreWebView2==null){EvictHost();return;}
         var core=view.CoreWebView2;
@@ -130,7 +140,7 @@ internal sealed class ShellWindow:Window
         Activate();
     }
     void ClosingWindow(object? sender,CancelEventArgs e){if(exit)return;e.Cancel=true;if(draftDirty)Post(new{type="closeRequested"});else _=Sleep(true);}
-    void EvictHost(){if(lifetime.CanEvict(IsVisible&&WindowState!=WindowState.Minimized,draftDirty))ShutdownHost();}
+    void EvictHost(){if(!pendingWrites&&lifetime.CanEvict(IsVisible&&WindowState!=WindowState.Minimized,draftDirty))ShutdownHost();}
     internal void ShutdownHost(){if(exit)return;exit=true;expiry.Stop();subscription?.Cancel();view?.Dispose();view=null;Close();}
     IntPtr Hook(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled)
     {

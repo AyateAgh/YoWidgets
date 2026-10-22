@@ -23,7 +23,7 @@ const waiting = new Map<
   {
     resolve: (value: unknown) => void;
     reject: (reason: Error) => void;
-    timer: ReturnType<typeof setTimeout>;
+    timer?: ReturnType<typeof setTimeout>;
   }
 >();
 const listeners = new Set<(event: HostEvent) => void>();
@@ -50,14 +50,17 @@ export function rpc<T = Record<string, unknown>>(
     );
   return new Promise((resolve, reject) => {
     const id = String(++sequence);
-    const timer = setTimeout(() => {
-      waiting.delete(id);
-      reject(
-        new Error(
-          "This action took too long. Check the desktop app and retry.",
-        ),
-      );
-    }, 35000);
+    const timer =
+      method === "ui.import.pick"
+        ? undefined
+        : setTimeout(() => {
+            waiting.delete(id);
+            reject(
+              new Error(
+                "This action took too long. Check the desktop app and retry.",
+              ),
+            );
+          }, 35000);
     waiting.set(id, { resolve: (value) => resolve(value as T), reject, timer });
     window.chrome!.webview!.postMessage({ id, method, args });
   });

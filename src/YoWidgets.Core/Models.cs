@@ -20,6 +20,8 @@ public sealed class WidgetState
 }
 public sealed class AppSettings
 {
+    public string InterfaceAccent {get;set;}="neutral";
+    public Dictionary<string,string[]> LibraryResume {get;set;}=[];
     public bool InterfaceSounds { get; set; }
     public double InterfaceVolume { get; set; } = .12;
     public string InterfaceTheme { get; set; } = "dark";
@@ -77,6 +79,7 @@ public sealed class AppSettings
     {
         InterfaceVolume = double.IsFinite(InterfaceVolume) ? Math.Clamp(InterfaceVolume, 0, 1) : .12;
         InterfaceTheme = "dark";
+        if(InterfaceAccent is not("auto" or "neutral" or "cyan" or "emerald" or "violet" or "amber" or "rose" or "blue" or "coral"))InterfaceAccent="neutral";
         // Disable the old experimental Explorer parent even for existing settings.
         DesktopMode = false;
         AiModel ??= "";

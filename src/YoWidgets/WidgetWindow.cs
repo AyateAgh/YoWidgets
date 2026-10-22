@@ -265,7 +265,7 @@ internal sealed class WidgetWindow : Window
         if (!loaded)
             return;
         Topmost = manager.Settings.Topmost;
-        if (!manager.Snoozed)
+        if (!manager.Snoozed && !IsVisible)
             Show();
         Position();
     }

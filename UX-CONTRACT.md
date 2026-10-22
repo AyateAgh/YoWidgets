@@ -163,3 +163,9 @@ Live actions: when allowed in Live voice settings, the session declares native f
 Control confirmation: Settings → Live voice → Ask before browser and app control affects both chat and calls. Off is the default and requested actions run without repeated approval dialogs. Enabling it restores target-scoped confirmation on subsequent tasks. Saving does not restart a call or change its voice. Opt-in dialogs stay above ordinary app windows and pending confirmation appears explicitly in call progress. Esc/Stop remain immediately available during active control.
 
 Game input uses fresh screenshots and the selected foreground window only. Right/middle clicks and bounded physical key holds are available; cancelled or failed holds release every pressed key. Real-time game skill and exclusive-fullscreen compatibility are not implied. The isolated fixture checks actual native mouse/key events, hold duration, cancellation release and excluded system shortcuts; actual Dota gameplay remains unverified.
+
+## Catalog refinement � 0.6.1
+
+Home's Install/Update/Add/Installed actions come from canonical catalog.ts numeric version comparisons; a newer installed version is never downgraded by an Update affordance. Legacy unchanged built-in resources have content version 1.0.0, independently of old app version 0.5.2. Library's primary card action is desktop visibility; off saves the enabled instance group and on restores those exact instances/positions. Completed Downloads go to Library; Clear finished removes terminal history only.
+
+Custom ZIP imports use the native picker, a metadata review and explicit Import. The schema is documented in docs/custom-packages.md; declarative resource validation remains native. Weather location is a one-shot approximate city lookup through ipapi.co and fills an unsaved city for review. It never saves or refreshes weather without the existing Save action. Accent and location failures retain manual alternatives.

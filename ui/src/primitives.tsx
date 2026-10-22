@@ -3,6 +3,9 @@ import * as Select from "@radix-ui/react-select";
 import * as Switch from "@radix-ui/react-switch";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { Check, ChevronDown, X, LoaderCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { activeCount } from "./catalog";
+import type { CatalogItem, Snapshot, Run } from "./types";
 import type { ReactNode, ButtonHTMLAttributes } from "react";
 export function Button({
   children,
@@ -100,9 +103,11 @@ export function ToggleRow({
   checked,
   onChange,
   disabled = false,
+  busy = false,
 }: {
   label: string;
   description?: string;
+  busy?: boolean;
   checked: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
@@ -117,6 +122,7 @@ export function ToggleRow({
       </span>
       <Switch.Root
         className="switch"
+        aria-busy={busy || undefined}
         checked={checked}
         onCheckedChange={onChange}
         disabled={disabled}
@@ -212,3 +218,47 @@ export function Section({
   );
 }
 export { Tooltip };
+
+export function VisibilitySwitch({
+  item,
+  state,
+  run,
+}: {
+  item: CatalogItem;
+  state: Snapshot;
+  run: Run;
+}) {
+  const actual = activeCount(item, state.widgets) > 0;
+  const [override, setOverride] = useState<boolean>();
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!busy) setOverride(undefined);
+  }, [actual, busy]);
+  return (
+    <Switch.Root
+      className="switch visibility-switch"
+      checked={override ?? actual}
+      aria-label={`Show ${item.title} ${item.collectionName || item.pack} on desktop`}
+      aria-busy={busy || undefined}
+      aria-disabled={
+        busy ||
+        state.installed.find((i) => i.item.id === item.id)?.needsRepair ||
+        undefined
+      }
+      onCheckedChange={(value) => {
+        if (
+          busy ||
+          state.installed.find((i) => i.item.id === item.id)?.needsRepair
+        )
+          return;
+        setOverride(value);
+        setBusy(true);
+        void run("content.visibility", { id: item.id, enabled: value })
+          .catch(() => setOverride(undefined))
+          .finally(() => setBusy(false));
+      }}
+    >
+      <Switch.Thumb className="switch-thumb" />
+    </Switch.Root>
+  );
+}
