@@ -17,6 +17,8 @@ Home and Library rendered in the actual WebView2 host using an isolated profile.
 
 The final read-only review reported no Critical and three Important findings. Each was reproduced before fixing: malformed persisted JSON, failed uninstall changing active instances, and automatic UI eviction dropping a draft. The new core/native tests then passed. No minor findings were deferred by that review.
 
+Hosted CI runs deterministic frontend/core/transport/platform checks with `-SkipVisualTests`. The default local build additionally runs the desktop visual suites. Hosted Windows animation/accessibility settings vary; a lack of animation under Windows reduced-motion preferences is valid behavior, not a failed visual effect.
+
 ## Manual acceptance remaining
 
 Hardware mixed-DPI transitions at 100/150/200%, monitor removal, missing-runtime installation under restrictive policy, hour-long process/GPU/DWM measurements and 100-cycle WebView suspend/resume remain unmeasured. Draft eviction policy is covered by code tests; live suspension-failure injection has not been performed. Native Windows notification identity and external services depend on the user's permissions and configuration.

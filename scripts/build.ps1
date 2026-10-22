@@ -1,4 +1,4 @@
-param([switch]$SkipTests)
+param([switch]$SkipTests,[switch]$SkipVisualTests)
 $ErrorActionPreference='Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $sdk = Join-Path $projectRoot '.tools/dotnet/dotnet.exe'
@@ -24,10 +24,13 @@ if (-not $SkipTests) {
  if ($LASTEXITCODE -ne 0) { throw 'Assistant transport tests failed' }
  & $sdk run --project (Join-Path $projectRoot 'tests/YoWidgets.Assistant.Tests') -c Release --no-build -- --voice-check
  if ($LASTEXITCODE -ne 0) { throw 'Live voice transport tests failed' }
+ if (-not $SkipVisualTests) {
  & $sdk run --project (Join-Path $projectRoot 'tests/YoWidgets.Assistant.Tests') -c Release --no-build -- --voice-ui-check
  if ($LASTEXITCODE -ne 0) { throw 'Live voice native UI tests failed' }
+ }
  & $sdk run --project (Join-Path $projectRoot 'tests/YoWidgets.Assistant.Tests') -c Release --no-build -- --widget-ipc-check
  if ($LASTEXITCODE -ne 0) { throw 'Widget command and named-pipe IPC tests failed' }
+ if (-not $SkipVisualTests) {
  & $sdk run --project (Join-Path $projectRoot 'tests/YoWidgets.Assistant.Tests') -c Release --no-build -- --ui-preview --agent-ui-check
  if ($LASTEXITCODE -ne 0) { throw 'Assistant native interaction tests failed' }
  & $sdk run --project (Join-Path $projectRoot 'tests/YoWidgets.Assistant.Tests') -c Release --no-build -- --activity-motion-ui-check
@@ -48,6 +51,7 @@ if (-not $SkipTests) {
  if ($LASTEXITCODE -ne 0) { throw 'Native document generation tests failed' }
  & $sdk run --project (Join-Path $projectRoot 'tools/CompositionProbe') -c Release
  if ($LASTEXITCODE -ne 0) { throw 'Native composition probe failed' }
+ } else { Write-Output 'Desktop visual checks skipped explicitly; run the default build on an interactive Windows desktop.' }
 }
 & $sdk run --project (Join-Path $projectRoot 'tools/ShaderCompiler') -c Release -- (Join-Path $projectRoot 'shaders/Glass.hlsl') (Join-Path $projectRoot 'shaders/Glass.ps')
 if ($LASTEXITCODE -ne 0) { throw 'Shader compilation failed' }

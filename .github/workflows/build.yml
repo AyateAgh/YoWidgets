@@ -26,7 +26,7 @@ jobs:
         run: node scripts/audit-source.mjs --history
       - name: Build and verify
         shell: pwsh
-        run: ./scripts/build.ps1
+        run: ./scripts/build.ps1 -SkipVisualTests
       - uses: actions/upload-artifact@v4
         with:
           name: YoWidgets-windows-x64
