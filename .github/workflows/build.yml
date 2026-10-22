@@ -27,6 +27,9 @@ jobs:
       - name: Build and verify
         shell: pwsh
         run: ./scripts/build.ps1 -SkipVisualTests
+      - name: Verify owned install and removal
+        shell: pwsh
+        run: ./tests/lifecycle.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: YoWidgets-windows-x64

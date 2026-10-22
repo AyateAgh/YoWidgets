@@ -127,4 +127,34 @@ if(-not $refused -or -not (Test-Path -LiteralPath $outsideNote)) {throw 'Assista
 Remove-Item -LiteralPath $outsideNote
 Remove-Item -LiteralPath $outsideCache
 Write-Output 'PASS assistant cache refuses junction descendants and retries safely'
-Write-Output 'RESULT 12/12 lifecycle cases passed'
+$platformCase=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+& (Join-Path $root 'scripts/install.ps1') -TestDestination $platformCase -NoLaunch
+$platformData=Join-Path $platformCase 'data'
+$uiCache=Join-Path $platformData 'Cache'
+New-Item -ItemType Directory -Path (Join-Path $uiCache 'UI/Default/Cache'),(Join-Path $platformData 'Content/packages/glass.clock/1.0.0') -Force|Out-Null
+@{Product='YoWidgets.Native.v1';Path=$uiCache}|ConvertTo-Json|Set-Content (Join-Path $uiCache '.yowidgets-owned.json')
+Set-Content (Join-Path $uiCache 'UI/Default/Cache/fixture.bin') 'synthetic cache'
+Set-Content (Join-Path $platformData 'Content/packages/glass.clock/1.0.0/widget.json') '{"kind":"clock","pack":"glass"}'
+foreach($name in @('catalog-cache.json','catalog-cache.json.tmp','ui-state.json','ui-state.json.tmp')){Set-Content (Join-Path $platformData $name) '{}'}
+& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $platformCase
+if(Test-Path -LiteralPath $platformCase){throw 'Platform content/cache survived removal'}
+Write-Output 'PASS platform cache, catalog, view state and downloaded packages are removed'
+$foreignContentCase=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+& (Join-Path $root 'scripts/install.ps1') -TestDestination $foreignContentCase -NoLaunch
+$unknownContent=Join-Path $foreignContentCase 'data/Content/personal-note.txt'
+New-Item -ItemType Directory -Path (Split-Path $unknownContent -Parent)|Out-Null
+Set-Content $unknownContent 'preserve'
+$refused=$false;try{& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $foreignContentCase}catch{$refused=$true}
+if(-not $refused -or -not (Test-Path $unknownContent)){throw 'Unknown content was removed'}
+Remove-Item -LiteralPath $unknownContent
+& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $foreignContentCase
+Write-Output 'PASS unknown content is preserved and removal can be retried'
+$activeCase=Join-Path $boundary ([Guid]::NewGuid().ToString('N'))
+& (Join-Path $root 'scripts/install.ps1') -TestDestination $activeCase -NoLaunch
+$activeData=Join-Path $activeCase 'data'
+$hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($activeData.ToUpperInvariant()))).Substring(0,20)
+$activeMutex=[Threading.Mutex]::new($false,'Local\YoWidgets-'+$hash)
+try{$refused=$false;try{& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $activeCase}catch{$refused=$true};if(-not $refused -or -not (Test-Path $activeData)){throw 'Active data root was removed'}}finally{$activeMutex.Dispose()}
+& (Join-Path $root 'scripts/uninstall.ps1') -TestRoot $activeCase
+Write-Output 'PASS an active data root blocks uninstall even from another executable path'
+Write-Output 'RESULT 15/15 lifecycle cases passed'

@@ -8,6 +8,7 @@
 - Frontend: 8/8, including combined filters/search, partial collections, dependency sizes and malformed saved-view recovery.
 - Full build also runs browser bridges, native voice, composer, generated media, browser/control scope and DOCX/PDF/XLSX/PPTX checks. These use isolated fixtures and do not consume a user's saved API keys.
 - Native compositor probe: 100 bind/property/animation/disposal cycles. These are compositor cycles, not WebView suspend cycles.
+- Owned installation/removal: 15/15, including new WebView cache, catalog/selection state, downloaded resources, unknown-file preservation and an active portable engine sharing the same data root. Platform cleanup and active-root protection were reproduced as failing cases before the script fixes.
 
 ## Real host observations
 

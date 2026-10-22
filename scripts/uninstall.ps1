@@ -45,6 +45,13 @@ if ($ParentId -gt 0) {
 }
 $running=Get-Process YoWidgets -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $installRoot 'YoWidgets.exe') }
 if ($running) { throw 'Close the installed YoWidgets before removal.' }
+# A portable engine may share the installed data root. Do not remove its live
+# content merely because its executable has a different path.
+$dataHasher=[Security.Cryptography.SHA256]::Create()
+try{$dataHash=([BitConverter]::ToString($dataHasher.ComputeHash([Text.Encoding]::UTF8.GetBytes(([IO.Path]::GetFullPath($m.DataRoot)).ToUpperInvariant())))).Replace('-','').Substring(0,20)}finally{$dataHasher.Dispose()}
+$dataMutex=$null
+try{$dataMutex=[Threading.Mutex]::OpenExisting('Local\YoWidgets-'+$dataHash)}catch [Threading.WaitHandleCannotBeOpenedException]{}
+if($dataMutex){$dataMutex.Dispose();throw 'YoWidgets is using this data. Close all copies before removal.'}
 if ($m.PackageFullName) {
  $package=Get-AppxPackage | Where-Object { $_.PackageFullName -eq $m.PackageFullName -and $_.Name -eq 'YoWidgets.Native' }
  if ($package) { Remove-AppxPackage -Package $package.PackageFullName }
@@ -85,7 +92,7 @@ if (Test-Path -LiteralPath $m.DataRoot) {
   Remove-Item -LiteralPath $bundleJournal -Force
  }
  # New assistant state is owned only when its exact root carries our marker.
- foreach($name in @('Assistant','assistant-cache','browser-profile','integrations')) {
+ foreach($name in @('Assistant','assistant-cache','browser-profile','integrations','Cache')) {
   $ownedRoot=[IO.Path]::GetFullPath((Join-Path $m.DataRoot $name)).TrimEnd('\')
   if (-not $ownedRoot.StartsWith([IO.Path]::GetFullPath($m.DataRoot).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid assistant data location' }
   if (-not (Test-Path -LiteralPath $ownedRoot)) { continue }
@@ -109,7 +116,31 @@ if (Test-Path -LiteralPath $m.DataRoot) {
   Remove-Item -LiteralPath $ownership -Force
   Remove-Item -LiteralPath $ownedRoot
  }
- $ownedData=@('settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','owned-images.json.tmp','bundle-cache.json.tmp','browser-companion.key')
+ # Content predates a separate root marker. Its exact declarative layout is
+ # validated in full before deleting any member; unexpected files are preserved.
+ $contentRoot=[IO.Path]::GetFullPath((Join-Path $m.DataRoot 'Content')).TrimEnd('\')
+ if(Test-Path -LiteralPath $contentRoot) {
+  if(-not $contentRoot.StartsWith([IO.Path]::GetFullPath($m.DataRoot).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid content root'}
+  Assert-NoReparse $contentRoot
+  foreach($entry in Get-ChildItem -LiteralPath $contentRoot -Force){
+   if($entry.PSIsContainer){if($entry.Name -notin @('packages','staging')){throw 'Unknown content directory preserved.'}}
+   elseif($entry.Name -notin @('installed.json','installed.json.bak','installed.json.tmp')){throw 'Unknown content file preserved.'}
+  }
+  $members=@(Get-ChildItem -LiteralPath $contentRoot -Recurse -File -Force)
+  foreach($entry in $members){
+   if(-not $entry.FullName.StartsWith($contentRoot+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Content member escaped its root'}
+   $relative=$entry.FullName.Substring($contentRoot.Length+1).Replace('\','/')
+   if($relative -match '^installed\.json(\.bak|\.tmp)?$'){continue}
+   $package=$relative -match '^packages/[a-z0-9][a-z0-9.-]{0,79}/[0-9]+(\.[0-9]+){1,3}/.+'
+   $staging=$relative -match '^staging/[a-f0-9]{32}/.+'
+   $allowedExtension=$entry.Extension.ToLowerInvariant() -in @('.json','.png','.jpg','.webp','.svg') -or ($staging -and $entry.Extension.ToLowerInvariant() -eq '.zip')
+   if(((-not $package)-and(-not $staging))-or($entry.Name -ne '.sha256'-and -not $allowedExtension)){throw 'Unknown package file preserved.'}
+  }
+  foreach($entry in $members){Remove-Item -LiteralPath $entry.FullName -Force}
+  foreach($directory in (Get-ChildItem -LiteralPath $contentRoot -Recurse -Directory -Force|Sort-Object {$_.FullName.Length} -Descending)){Remove-Item -LiteralPath $directory.FullName}
+  Remove-Item -LiteralPath $contentRoot
+ }
+ $ownedData=@('catalog-cache.json','catalog-cache.json.tmp','ui-state.json','ui-state.json.tmp','settings.json','settings.json.bak','settings.json.tmp','settings.json.corrupt','app.log','app.log.old','weather-cache.json','weather-cache.json.tmp','system-changes.json','system-changes.json.tmp','owned-images.json.tmp','bundle-cache.json.tmp','browser-companion.key')
  foreach($name in $ownedData) { $file=Join-Path $m.DataRoot $name; if (Test-Path -LiteralPath $file -PathType Leaf) { Remove-Item -LiteralPath $file -Force } }
  $imageJournal=Join-Path $m.DataRoot 'owned-images.json'
  $images=Join-Path $m.DataRoot 'images'
