@@ -41,12 +41,13 @@ internal static class WidgetContentFactory
         var image = new Image { Stretch = Stretch.UniformToFill };
         var label = T("Your photo", 13);
         label.HorizontalAlignment = HorizontalAlignment.Center;
-        var p = new Grid();
-        p.SizeChanged += (_, _) => p.Clip = new RectangleGeometry(new Rect(0, 0, p.ActualWidth, p.ActualHeight), 18, 18);
+        var p = new Grid{Background=Brushes.Transparent};
+        p.SizeChanged += (_, _) => p.Clip = new RectangleGeometry(new Rect(0, 0, p.ActualWidth, p.ActualHeight), Math.Min(32,Math.Min(p.ActualWidth,p.ActualHeight)/4), Math.Min(32,Math.Min(p.ActualWidth,p.ActualHeight)/4));
         p.Children.Add(image);
         p.Children.Add(label);
         void Load()
         {
+            image.Source=null;label.Visibility=Visibility.Visible;label.Text=s.ImagePath==null?"Your photo":"Photo unavailable. Choose another.";
             if (s.ImagePath != null && OwnedPaths.IsInside(App.DataRoot, s.ImagePath) && File.Exists(s.ImagePath))
                 try
                 {
@@ -62,11 +63,16 @@ internal static class WidgetContentFactory
                 }
                 catch { label.Text = "Photo unavailable. Choose another."; }
         }
-        var choose = Small("Choose photo", () => { var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "Images|*.jpg;*.jpeg;*.png;*.bmp" }; if (dialog.ShowDialog() != true) return; try { var dir = Path.Combine(App.DataRoot, "images"); Directory.CreateDirectory(dir); var path = Path.Combine(dir, Guid.NewGuid().ToString("N") + Path.GetExtension(dialog.FileName).ToLowerInvariant()); OwnedData.RegisterImage(Path.GetFileName(path)); File.Copy(dialog.FileName, path); s.ImagePath = path; m.Save(); Load(); } catch (Exception e) { label.Text = "Could not open photo"; App.Log("photo", e); } });
+        Button choose=null!; choose = Small("Choose photo", () => { var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "Images|*.jpg;*.jpeg;*.png;*.bmp" }; if (dialog.ShowDialog() != true) return; try { var dir = Path.Combine(App.DataRoot, "images"); Directory.CreateDirectory(dir); var path = Path.Combine(dir, Guid.NewGuid().ToString("N") + Path.GetExtension(dialog.FileName).ToLowerInvariant()); OwnedData.RegisterImage(Path.GetFileName(path)); File.Copy(dialog.FileName, path); s.ImagePath = path; m.Save(); Load();Reveal(); } catch (Exception e) { label.Text = "Could not open photo"; App.Log("photo", e); } });
         choose.VerticalAlignment = VerticalAlignment.Bottom;
         choose.HorizontalAlignment = HorizontalAlignment.Center;
+        choose.Margin=new(0,0,0,12);
+        choose.Background=new SolidColorBrush(Color.FromArgb(150,24,26,30));choose.Resources["WidgetInk"]=Brushes.White;
+        choose.Opacity=0;choose.IsHitTestVisible=false;
+        void Reveal(){var visible=image.Source==null||p.IsMouseOver||p.IsKeyboardFocusWithin;choose.IsHitTestVisible=visible;choose.BeginAnimation(UIElement.OpacityProperty,new System.Windows.Media.Animation.DoubleAnimation(visible?1:0,TimeSpan.FromMilliseconds(SystemParameters.ClientAreaAnimation?160:0)));}
+        p.MouseEnter+=(_,_)=>Reveal();p.MouseLeave+=(_,_)=>Reveal();p.IsKeyboardFocusWithinChanged+=(_,_)=>Reveal();
         p.Children.Add(choose);
-        Load();
+        Load();Reveal();
         return p;
     }
     internal static void Open(string uri)

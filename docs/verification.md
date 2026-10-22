@@ -1,4 +1,13 @@
-# YoWidgets 0.6.6 verification
+# YoWidgets 0.6.7 verification
+
+
+## Transparent widget instruments, 2026-10-22
+
+Focus and Controls now inherit pack glass and adaptive ink instead of a second dark panel. Photo content has zero inset and no image shadow; its action fades on hover or keyboard focus and remains visible for empty/unavailable images. Corner resizing persists per-instance DIP dimensions and keeps the opposite edge anchored. Shared gesture/persistence bounds prevent accepted sizes changing on restart. S/M/L selection clears custom dimensions and updates the live window.
+
+The new opaque-surface regression failed before the fix. Final native platform checks passed 30/30, including thumb drag, transparent/adaptive surfaces, anchored photo resize, displayed-dimension persistence and reopen. Frontend checks passed 36/36; catalog 23/23 and the existing core/assistant/voice/desktop visual/composer/media/control/document/compositor suites also passed during this revision. After final photo action refresh and brightness-write reconciliation adjustments, native 30/30 was rerun and the final single-file publish succeeded. Owned install/removal passed 15/15 on the final executable.
+
+Actual Windows pointer input on isolated fixtures verified continuous rail drag (40 to 75.84 without changing system audio) and photo corner resize (398.4 by 208 to 318.4 by 173.6 DIP, with the same saved dimensions). Tab focused and revealed Choose photo; screenshots verified edge-to-edge images and the transparent Focus surface. Controls volume writes coalesce at 40 ms and brightness at 150 ms; UI remains local and responsive while the latest value is applied. Broad hardware/performance claims, including all-device frame-rate guarantees, remain unmeasured.
 
 ## Native widgets, Focus and Library, 2026-10-22
 

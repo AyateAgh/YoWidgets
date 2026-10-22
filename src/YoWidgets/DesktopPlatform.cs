@@ -30,7 +30,7 @@ internal sealed class DesktopPlatform:IDisposable
         catalog=JsonSerializer.Deserialize<CatalogDocument>(seed,CatalogJson.Options)!;CatalogRules.Validate(catalog);
         if(File.Exists(cache))try{var saved=JsonSerializer.Deserialize<CatalogDocument>(File.ReadAllText(cache),CatalogJson.Options)!;CatalogRules.Validate(saved);catalog=saved;}catch(Exception e)when(e is IOException or JsonException or InvalidDataException){catalogError="The saved catalog was reset.";}
         Content=new(Path.Combine(root,"Content"));if(migrate)Content.ImportLegacy(catalog);Content.EnsureRegistry();Content.UpgradeLegacyMetadata();WidgetPacks.LoadInstalled(Content);
-        http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(30)};http.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.6.6");
+        http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(30)};http.DefaultRequestHeaders.UserAgent.ParseAdd("YoWidgets/0.6.7");
         manager.Changed+=Publish;
     }
     internal object Snapshot()=>new {
@@ -147,7 +147,7 @@ internal sealed class DesktopPlatform:IDisposable
             case "widget.disable":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");manager.Disable(widget);Publish();return new{accepted=true};}
             case "widget.remove":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");manager.Disable(widget);manager.Settings.Widgets.Remove(widget);manager.Save();Publish();return new{accepted=true};}
             case "widget.enable":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");if(!Content.IsReady(widget.ContentId))throw new InvalidOperationException("Install or repair this widget first.");if(manager.Snoozed)manager.SetSnooze(false);manager.Enable(widget);Publish();return new{accepted=true};}
-            case "widget.size":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");var size=PlatformSettings.Text(args,"size");if(size is not("S" or "M" or "L"))throw new InvalidOperationException("Choose S, M or L.");widget.Size=size;manager.ApplyAppearance();manager.Save();Publish();return new{accepted=true};}
+            case "widget.size":{var widget=manager.Settings.Widgets.FirstOrDefault(w=>w.Id==id)??throw new InvalidOperationException("The widget was not found.");var size=PlatformSettings.Text(args,"size");if(size is not("S" or "M" or "L"))throw new InvalidOperationException("Choose S, M or L.");manager.SetSize(widget,size);Publish();return new{accepted=true};}
             case "app.snooze":manager.SetSnooze(!manager.Snoozed);Publish();return new{accepted=true};
             case "app.disableAll":manager.DisableAll();Publish();return new{accepted=true};
             case "app.sound":InterfaceAudio.Play(PlatformSettings.Text(args,"sound"),manager,args.TryGetProperty("preview",out var preview)&&preview.GetBoolean());return new{accepted=true};

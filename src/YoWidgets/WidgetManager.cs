@@ -206,6 +206,12 @@ internal sealed class WidgetManager : IDisposable
         Save();
         Changed?.Invoke();
     }
+    internal void SetSize(WidgetState state,string size)
+    {
+        state.Size=size;state.PhotoWidth=state.PhotoHeight=null;
+        if(windows.TryGetValue(state.Id,out var window))window.ApplySize();
+        Save();Changed?.Invoke();
+    }
     public void RecoverDesktop()
     {
         foreach (var w in windows.Values.ToArray())

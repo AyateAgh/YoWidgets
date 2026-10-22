@@ -3079,8 +3079,8 @@ html[data-panel-clear="true"] .settings-nav button.selected {
   }
 }
 
-/* Desktop instrument previews share the actual readable inset material. */
-.sample-glass.sample-focus,.sample-glass.sample-quick,.sample-glass.sample-notifications {
+/* Notifications retains a reading inset; instruments use the pack glass. */
+.sample-glass.sample-notifications {
   background: rgb(22 24 29 / 84%); color: #fff;
 }
 .sample-focus { width: 86%; gap: 14px; padding: 14px; }
@@ -3091,6 +3091,7 @@ html[data-panel-clear="true"] .settings-nav button.selected {
 .focus-preview-heading .focus-time { margin-left:auto; font-size:clamp(18px,9cqw,36px); font-weight:550; letter-spacing:-.7px; }
 .focus-preview-footer { display:flex; justify-content:space-between; align-items:center; width:100%; }
 .focus-preview-footer > span { border-radius:20px; padding:6px 10px; background:#ffffff22; font-size:clamp(7px,2.7cqw,10px); }
-.focus-preview-footer i { width:30px; height:30px; border-radius:50%; background:#fff; color:#202027; display:grid; place-items:center; }
+.focus-preview-footer i { width:30px; height:30px; border-radius:50%; background:linear-gradient(#ffffff30,#ffffff0f); border:1px solid #ffffff40; display:grid; place-items:center; }
 .sample-quick .control-orbs { width:100%; gap:6px; }
-.sample-quick .control-orbs > span { flex:1; border-radius:14px; }
+.sample-quick .control-orbs { justify-content:space-around; }
+.sample-quick .control-orbs > span { width:35px; height:35px; flex:none; border-radius:50%; background:linear-gradient(#ffffff30,#ffffff0f); border:1px solid #ffffff40; }

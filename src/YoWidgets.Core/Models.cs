@@ -17,6 +17,8 @@ public sealed class WidgetState
         get; set;
     }
     public string Monitor { get; set; } = "";
+    public double? PhotoWidth {get;set;}
+    public double? PhotoHeight {get;set;}
 }
 public sealed class AppSettings
 {
@@ -116,6 +118,8 @@ public sealed class AppSettings
                 w.X = 80;
             if (!double.IsFinite(w.Y))
                 w.Y = 80;
+            w.PhotoWidth=w.PhotoWidth is {} pw&&double.IsFinite(pw)?Math.Clamp(pw,224,3840):null;
+            w.PhotoHeight=w.PhotoHeight is {} ph&&double.IsFinite(ph)?Math.Clamp(ph,152,2160):null;
             if (!new[] { "S", "M", "L" }.Contains(w.Size))
                 w.Size = "M";
             if (string.IsNullOrEmpty(w.Id))

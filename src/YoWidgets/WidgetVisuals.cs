@@ -3,6 +3,12 @@ namespace YoWidgets;
 
 internal static class WidgetVisuals
 {
+    internal static Brush GlassFill()=>new LinearGradientBrush(Color.FromArgb(48,255,255,255),Color.FromArgb(15,255,255,255),90);
+    internal static Brush GlassEdge()=>new LinearGradientBrush(Color.FromArgb(95,255,255,255),Color.FromArgb(18,255,255,255),70);
+    internal static void GlassButton(Button button)
+    {
+        var style=new Style(typeof(Button),button.Style);style.Setters.Add(new Setter(Control.BackgroundProperty,GlassFill()));style.Setters.Add(new Setter(Control.BorderBrushProperty,GlassEdge()));button.Style=style;
+    }
     public static TextBlock Label(string text, double size = 13, bool strong = false, bool secondary = false)
     {
         var label = new TextBlock { Text = text, FontSize = size, FontFamily = Ui.BodyFont, FontWeight = strong ? FontWeights.SemiBold : FontWeights.Medium, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };

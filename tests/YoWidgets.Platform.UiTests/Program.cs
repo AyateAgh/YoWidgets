@@ -37,6 +37,7 @@ internal static class Program
         var root=Path.Combine(Path.GetTempPath(),"YoPlatformNative-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
         typeof(App).GetProperty(nameof(App.DataRoot),BindingFlags.Static|BindingFlags.Public)!.SetValue(null,root);
         var app=new App{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+        if(args.Contains("--widget-material-fixture")){Console.WriteLine(root);app.Startup+=(_,_)=>WidgetMaterialFixture.Show(app,root);app.Run();return 0;}
         app.Startup+=async(_,_)=>{
             Ui.Theme();using var manager=new WidgetManager(root,true);using var platform=new DesktopPlatform(manager,root,false);using var shell=new ShellController(platform);using var server=new ManagementServer(platform,shell,root,app.Dispatcher);
             try
@@ -128,6 +129,23 @@ internal static class Program
                 });
                 await Test("widget action pills never reuse a parented label",()=>{foreach(var label in new[]{"Choose photo","Refresh","Wi-Fi","DND","Sound / mute"}){var button=WidgetVisuals.Pill(label,()=>{});Check(button.Content is FrameworkElement,"Missing pill content");}return Task.CompletedTask;});
                 await Test("every installed native widget can construct without changing system settings",()=>{foreach(var pack in new[]{"glass","liquid"})foreach(var kind in new[]{"photo","focus","quick","notifications"}){var content=WidgetContentFactory.Create(manager,new(){Kind=kind,Pack=pack},preview:true);Check(content!=null,"Missing widget "+kind);}return Task.CompletedTask;});
+                await Test("Controls slider thumb drag changes value continuously",()=>{
+                    var slider=new System.Windows.Controls.Slider{Minimum=0,Maximum=100,Value=40,Width=300,Height=32};slider.SetResourceReference(FrameworkElement.StyleProperty,"ControlCenterSlider");
+                    var host=new Window{Content=slider,Width=340,Height=90,ShowInTaskbar=false};host.Show();host.UpdateLayout();
+                    try{var track=(System.Windows.Controls.Primitives.Track)slider.Template.FindName("PART_Track",slider);var before=slider.Value;track.Thumb.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(60,0));Check(slider.Value>before+10,"Dragging the thumb did not move the slider value");}finally{host.Close();}return Task.CompletedTask;
+                });
+                await Test("Focus and Controls inherit transparent pack surfaces and adaptive ink",()=>{
+                    foreach(var pack in new[]{"glass","liquid"})foreach(var kind in new[]{"focus","quick"}){var content=(System.Windows.Controls.Border)WidgetContentFactory.Create(manager,new(){Kind=kind,Pack=pack},preview:true);Check(content.Background==null||content.Background==System.Windows.Media.Brushes.Transparent,"Opaque inner panel on "+kind);Check(!content.Resources.Contains("WidgetInk"),"Widget overrides adaptive ink on "+kind);}return Task.CompletedTask;
+                });
+                await Test("photo corner resizing anchors opposite edges and survives restart",()=>{
+                    var folder=Path.Combine(root,"photo-resize");Directory.CreateDirectory(folder);using var owner=new WidgetManager(folder,true,focusEnvironment:new FakeFocusEnvironment());var state=new WidgetState{Kind="photo",Enabled=true,PhotoWidth=420,PhotoHeight=280};owner.Settings.Widgets.Add(state);
+                    var photo=new WidgetWindow(owner,state,true);photo.Show();photo.UpdateLayout();
+                    try{var before=Native.Bounds(photo);photo.ResizePhoto(30,20,true,true);photo.UpdateLayout();var after=Native.Bounds(photo);Check(Math.Abs((before.X+before.Width)-(after.X+after.Width))<2&&Math.Abs((before.Y+before.Height)-(after.Y+after.Height))<2,"Opposite photo edges moved");Check(photo.ActualWidth<420&&photo.ActualHeight<280,"Photo did not resize");
+                        var surface=(System.Windows.Controls.Grid)photo.Content;var image=surface.Children.OfType<System.Windows.Controls.Grid>().Single(element=>element is not GlassSurface);Check(image.Margin==new Thickness(0)&&image.Effect==null,"Photo has an inset frame or image shadow");surface.Children.OfType<System.Windows.Controls.Primitives.Thumb>().First().RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(30,20,false));
+                        var saved=new SettingsStore(Path.Combine(folder,"settings.json")).Load().Widgets.Single();Check(Math.Abs(saved.PhotoWidth!.Value-photo.ActualWidth)<1&&Math.Abs(saved.PhotoHeight!.Value-photo.ActualHeight)<1,"Displayed photo dimensions not persisted");var restored=new WidgetWindow(owner,saved,true);try{Check(Math.Abs(restored.Width-photo.Width)<1&&Math.Abs(restored.Height-photo.Height)<1,"Photo size not restored");}finally{restored.CloseOwned();}
+                        photo.ResizePhoto(-10000,-10000,false,false);photo.UpdateLayout();Check(photo.ActualWidth>=223&&photo.ActualHeight>=151,"Photo resized below its minimum");
+                    }finally{photo.CloseOwned();}return Task.CompletedTask;
+                });
                 await Test("failed window creation cannot leave enabled or counted instances",()=>{
                     var failedRoot=Path.Combine(root,"failing-window");Directory.CreateDirectory(failedRoot);using var failing=new WidgetManager(failedRoot,true,(_,_)=>throw new InvalidOperationException("Fixture construction failure"));
                     var count=failing.Settings.Widgets.Count;try{failing.Add("photo","glass");}catch(InvalidOperationException){}Check(failing.Settings.Widgets.Count==count&&failing.ActiveCount==0,"Failed Add created a ghost instance");

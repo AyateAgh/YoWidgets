@@ -49,9 +49,10 @@ internal sealed class WidgetWindow : Window
         surface.Margin = new Thickness(20);
         surface.Children.Add(glass);
         var content = WidgetContentFactory.Create(m, s, this);
-        content.Margin = new Thickness(s.Kind == "assistant" ? 8 : 18);
-        content.Effect = inkShadow;
+        content.Margin = new Thickness(s.Kind == "photo" ? 0 : s.Kind == "assistant" ? 8 : 18);
+        if(s.Kind!="photo")content.Effect = inkShadow;
         surface.Children.Add(content);
+        if(s.Kind=="photo")AddPhotoResizeHandles();
         Content = surface;
         SetDimensions();
         SourceInitialized += (_, _) => { if (!App.InspectWidgetWindows) Native.ToolWindow(this); var source = (HwndSource)PresentationSource.FromVisual(this); source.AddHook(Hook); };
@@ -76,7 +77,7 @@ internal sealed class WidgetWindow : Window
         foreach (var size in new[] { "S", "M", "L" })
         {
             var z = size;
-            Item("Size " + z, () => { state.Size = z; SetDimensions(); manager.Save(); });
+            Item("Size " + z, () => { state.Size = z; state.PhotoWidth=state.PhotoHeight=null;SetDimensions(); manager.Save(); });
         }
         Item("Move into view", Position);
         Item("Disable widget", () => { if (checker) CloseOwned(); else manager.Disable(state); });
@@ -178,11 +179,41 @@ internal sealed class WidgetWindow : Window
         }
         Width = w + 40;
         Height = h + 40;
+        if(kind=="photo")
+        {
+            MinWidth=224;MinHeight=152;
+            if(state.PhotoWidth is {} pw&&double.IsFinite(pw))Width=Math.Clamp(pw,224,3840);
+            if(state.PhotoHeight is {} ph&&double.IsFinite(ph))Height=Math.Clamp(ph,152,2160);
+        }
         if (kind == "assistant")
         {
             Width = (small ? 360 : large ? 480 : 400) + 40;
             Height = assistantContentHeight + 40;
         }
+    }
+    internal void ApplySize(){SetDimensions();if(loaded){Position();RefreshGlass();}}
+    void AddPhotoResizeHandles()
+    {
+        foreach(var (left,top) in new[]{(true,true),(false,true),(true,false),(false,false)})
+        {
+            var handle=new System.Windows.Controls.Primitives.Thumb{Width=26,Height=26,HorizontalAlignment=left?HorizontalAlignment.Left:HorizontalAlignment.Right,VerticalAlignment=top?VerticalAlignment.Top:VerticalAlignment.Bottom,Cursor=left==top?Cursors.SizeNWSE:Cursors.SizeNESW,Focusable=false,ToolTip="Drag to resize photo"};
+            var template=new ControlTemplate(typeof(System.Windows.Controls.Primitives.Thumb));var target=new FrameworkElementFactory(typeof(Border));target.SetValue(Border.BackgroundProperty,Brushes.Transparent);template.VisualTree=target;handle.Template=template;
+            handle.DragStarted+=(_,_)=>{moving=true;PrepareMotion();CompositionTarget.Rendering+=RenderMove;};
+            handle.DragDelta+=(_,e)=>ResizePhoto(e.HorizontalChange,e.VerticalChange,left,top);
+            handle.DragCompleted+=(_,_)=>{CompositionTarget.Rendering-=RenderMove;moving=false;glass.Motion(false);liveBackdrop?.Interaction(false);state.PhotoWidth=Width;state.PhotoHeight=Height;SavePosition();QueueGlassRefresh();};
+            surface.Children.Add(handle);
+        }
+    }
+    internal void ResizePhoto(double dx,double dy,bool left,bool top)
+    {
+        if(state.Kind!="photo"||!double.IsFinite(dx)||!double.IsFinite(dy))return;
+        var area=System.Windows.Forms.Screen.FromHandle(Native.Handle(this)).WorkingArea;var dpi=Math.Max(.5,Native.GetDpiForWindow(Native.Handle(this))/96d);
+        var maxWidth=Math.Min(3840,area.Width/dpi);var maxHeight=Math.Min(2160,area.Height/dpi);
+        var width=Math.Clamp(Width+(left?-dx:dx),Math.Min(MinWidth,maxWidth),maxWidth);var height=Math.Clamp(Height+(top?-dy:dy),Math.Min(MinHeight,maxHeight),maxHeight);
+        var x=Left+(left?Width-width:0);var y=Top+(top?Height-height:0);
+        // Set one native rectangle, so opposite edges stay anchored throughout a gesture.
+        Native.SetWindowPos(Native.Handle(this),IntPtr.Zero,(int)Math.Round(x*dpi),(int)Math.Round(y*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x14);
+        glass.Update(Math.Max(1,width-40),Math.Max(1,height-40),state.Pack);liveBackdrop?.Sync(this);
     }
     internal void SetAssistantReadability(bool expanded) { assistantReading = expanded; liveBackdrop?.Readability(expanded); }
     public void ResizeAssistant(double contentHeight)

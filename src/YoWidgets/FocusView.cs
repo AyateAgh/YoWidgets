@@ -9,17 +9,17 @@ internal sealed class FocusView:Border
     bool? running;Popup? popup;GlassPopupMotion? popupMotion;
     internal FocusView(WidgetManager manager,bool preview=false)
     {
-        this.manager=manager;WidgetPanel.Style(this);Padding=new Thickness(12);
+        this.manager=manager;Padding=new Thickness(4);
         var body=new Grid();body.RowDefinitions.Add(new());body.RowDefinitions.Add(new(){Height=GridLength.Auto});
         var top=new Grid();top.ColumnDefinitions.Add(new(){Width=new GridLength(46)});top.ColumnDefinitions.Add(new());top.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
         var moon=new Border{Width=38,Height=38,CornerRadius=new(19),Background=new SolidColorBrush(Color.FromArgb(45,195,174,255)),Child=WidgetVisuals.Icon("moon",21),VerticalAlignment=VerticalAlignment.Center};top.Children.Add(moon);
         var title=Ui.Stack(WidgetVisuals.Label("Focus",16,true),status);Grid.SetColumn(title,1);title.VerticalAlignment=VerticalAlignment.Center;top.Children.Add(title);
         Grid.SetColumn(time,2);time.Margin=new Thickness(6,0,0,0);time.FontFamily=Ui.DisplayFont;top.Children.Add(time);body.Children.Add(top);
         var footer=new Grid{Margin=new Thickness(0,10,0,0)};footer.ColumnDefinitions.Add(new());footer.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
-        duration=WidgetVisuals.Pill("25 min",()=>OpenDuration());duration.HorizontalAlignment=HorizontalAlignment.Left;footer.Children.Add(duration);
+        duration=WidgetVisuals.Pill("25 min",()=>OpenDuration());WidgetVisuals.GlassButton(duration);duration.HorizontalAlignment=HorizontalAlignment.Left;footer.Children.Add(duration);
         action=WidgetVisuals.IconButton("play","Start focus",()=>{try{if(manager.Data.FocusEnd!=null)manager.Data.StopFocus();else manager.Data.StartFocus(Math.Clamp(manager.Settings.FocusMinutes,1,1440));}catch(InvalidOperationException){}Refresh();},38,true);
-        action.Resources["FocusActionInk"]=new SolidColorBrush(Color.FromRgb(25,22,34));action.Background=Brushes.White;
-        play=WidgetVisuals.Icon("play",18,"FocusActionInk");stop=WidgetVisuals.Icon("square",18,"FocusActionInk");var icons=new Grid();icons.Children.Add(play);icons.Children.Add(stop);action.Content=icons;action.IsEnabled=!preview;Grid.SetColumn(action,1);footer.Children.Add(action);Grid.SetRow(footer,1);body.Children.Add(footer);Child=body;
+        WidgetVisuals.GlassButton(action);
+        play=WidgetVisuals.Icon("play",18);stop=WidgetVisuals.Icon("square",18);var icons=new Grid();icons.Children.Add(play);icons.Children.Add(stop);action.Content=icons;action.IsEnabled=!preview;Grid.SetColumn(action,1);footer.Children.Add(action);Grid.SetRow(footer,1);body.Children.Add(footer);Child=body;
         Loaded+=(_,_)=>{manager.Data.Changed+=Refresh;Refresh();};Unloaded+=(_,_)=>{manager.Data.Changed-=Refresh;popupMotion?.Close();};Refresh();
         SizeChanged+=(_,_)=>time.FontSize=ActualWidth<245?24:30;
     }
