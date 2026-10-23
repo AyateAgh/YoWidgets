@@ -30,7 +30,7 @@ jobs:
       - name: Verify owned install and removal
         shell: pwsh
         run: ./tests/lifecycle.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: YoWidgets-windows-x64
           path: artifacts/install-payload/
